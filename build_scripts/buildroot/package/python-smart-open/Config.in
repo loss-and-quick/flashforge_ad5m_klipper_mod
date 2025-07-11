@@ -1,0 +1,6 @@
+config BR2_PACKAGE_PYTHON_SMART_OPEN
+	bool "python-smart-open"
+	help
+	  smart-open — Utils for streaming large files (S3, HDFS, GCS, Azure Blob Storage, gzip, bz2...)
+	  
+	  https://pypi.org/project/smart-open/
