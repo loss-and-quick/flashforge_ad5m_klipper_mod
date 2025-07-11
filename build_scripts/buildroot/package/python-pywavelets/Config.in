@@ -1,0 +1,8 @@
+config BR2_PACKAGE_PYTHON_PYWAVELETS
+    bool "python-pywavelets"
+    select BR2_PACKAGE_PYTHON_NUMPY
+    select BR2_PACKAGE_PYTHON_CYTHON
+    help
+        PyWavelets, wavelet transform module.
+
+        https://github.com/PyWavelets/pywt
