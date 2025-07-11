@@ -1,0 +1,8 @@
+config BR2_PACKAGE_PYTHON_ZSTANDARD
+	bool "python-zstandard"
+	select BR2_PACKAGE_PYTHON_SETUPTOOLS_SCM
+	select BR2_PACKAGE_PYTHON_CFFI
+	help
+	  Zstandard bindings for Python.
+
+	  https://github.com/indygreg/python-zstandard
