@@ -1,0 +1,7 @@
+config BR2_PACKAGE_PYTHON_STREAMING_FORM_DATA
+	bool "python-streaming-form-data"
+	select BR2_PACKAGE_PYTHON_SMART_OPEN
+	help
+	  streaming-form-data is a library for streaming multipart/form-data parsing.
+	  
+	  https://pypi.org/project/streaming-form-data/
