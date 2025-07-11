@@ -1,0 +1,6 @@
+config BR2_PACKAGE_PYTHON_APPRISE
+	bool "python-apprise"
+	help
+	  Apprise allows you to send notifications to almost all of
+	  the most popular notification services available to us today.
+	  https://pypi.org/project/apprise/
