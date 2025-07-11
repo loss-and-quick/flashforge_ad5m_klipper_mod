@@ -1,0 +1,8 @@
+config BR2_PACKAGE_PYTHON_ZIPP
+	bool "python-zipp"
+	select BR2_PACKAGE_HOST_PYTHON_COHERENT_LICENSED
+	select BR2_PACKAGE_HOST_PYTHON_SETUPTOOLS_SCM
+	help
+	  Backport of pathlib-compatible object wrapper for zip files.
+
+	  https://github.com/jaraco/zipp
