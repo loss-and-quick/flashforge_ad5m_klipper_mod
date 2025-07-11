@@ -1,0 +1,7 @@
+config BR2_PACKAGE_PYTHON_LIBNACL
+	bool "python-libnacl"
+	select BR2_PACKAGE_LIBSODIUM
+	help
+	  Python bindings for libsodium based on ctypes.
+
+	  https://libnacl.readthedocs.org/
