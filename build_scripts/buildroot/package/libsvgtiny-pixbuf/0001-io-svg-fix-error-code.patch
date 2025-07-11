@@ -1,0 +1,25 @@
+From: minicx <minicx@disroot.org>
+Date: Sun, 15 Jun 2025 00:05:00 +0300
+Subject: [PATCH 1/1] io-svg: replace undefined svgtiny_LIBDOM_ERROR with svgtiny_LIBXML_ERROR
+
+In io-svg.c the error code `svgtiny_LIBDOM_ERROR` does not exist,
+resulting in a compilation error. Replace it with the correct
+`svgtiny_LIBXML_ERROR`.
+
+---
+ io-svg.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/io-svg.c b/io-svg.c
+index e3a1f8b..b4f2c3d 100644
+--- a/io-svg.c
++++ b/io-svg.c
+@@ -178,7 +178,7 @@ static diagram_t* svgtiny_diagram_from_b
+                           G_FILE_ERROR_NOMEM,
+                           "out of memory in svgtiny_parse()");
+       break;
+-    case svgtiny_LIBDOM_ERROR:
++    case svgtiny_LIBXML_ERROR:
+       g_set_error_literal(error,
+                           GDK_PIXBUF_ERROR,
+                           GDK_PIXBUF_ERROR_CORRUPT_IMAGE,
