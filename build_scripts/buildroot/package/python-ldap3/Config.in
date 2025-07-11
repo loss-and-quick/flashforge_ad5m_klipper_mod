@@ -1,0 +1,8 @@
+config BR2_PACKAGE_PYTHON_LDAP3
+	bool "python-ldap3"
+	select BR2_PACKAGE_PYTHON_PYASN1
+	select BR2_PACKAGE_PYTHON_PYCRYPTODOMEX
+	help
+	  A strictly RFC 4510 conforming LDAP V3 pure Python client library
+
+	  http://ldap3.readthedocs.io/
