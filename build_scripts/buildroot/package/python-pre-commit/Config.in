@@ -1,0 +1,8 @@
+config BR2_PACKAGE_PYTHON_PRE_COMMIT
+	bool "python-pre-commit"
+	select BR2_PACKAGE_GIT
+	help
+	  pre-commit is a framework for managing and maintaining multi-language
+	  pre-commit hooks. Installs version 4.2.0 from PyPI.
+	  
+	  https://pypi.org/project/pre-commit/
