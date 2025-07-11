@@ -1,0 +1,18 @@
+--- a/pyproject.toml        2025-06-10 20:56:07.091723974 +0300
++++ b/pyproject.toml        2025-06-10 20:56:10.803717822 +0300
+@@ -1,5 +1,5 @@
+ [build-system]
+-requires = ["flit-core >=3.11, <4"]
++requires = ["flit-core >=3.10, <4"]
+ build-backend = "flit_core.buildapi"
+ 
+ [project]
+@@ -10,7 +10,7 @@
+ requires-python = ">= 3.9"
+ dependencies = []
+ classifiers = ["Development Status :: 4 - Beta", "Intended Audience :: Developers", "Programming Language :: Python :: 3", "Programming Language :: Python :: 3 :: Only"]
+-license = "MIT"
++license = { text = "MIT" }
+ 
+ [[project.authors]]
+ name = "Jason R. Coombs"

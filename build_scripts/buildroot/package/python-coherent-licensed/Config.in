@@ -1,0 +1,7 @@
+config BR2_PACKAGE_PYTHON_COHERENT_LICENSED
+	bool "host python-coherent-licensed"
+	help
+		License management tooling for Coherent System and skeleton projects
+
+		https://pypi.org/project/coherent.licensed
+		
