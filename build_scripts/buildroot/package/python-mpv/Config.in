@@ -1,0 +1,7 @@
+config BR2_PACKAGE_PYTHON_MPV
+	bool "python-mpv"
+    select BR2_PACKAGE_MPV
+	help
+	  A python interface to the mpv media player
+
+	  https://github.com/jaseg/python-mpv
