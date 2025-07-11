@@ -1,34 +1,55 @@
 {
-  description = "Klipper development shell";
+  description = "Flake environment for buildroot";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-parts.url = "github:hercules-ci/flake-parts";
+  };
 
-  outputs = { self, nixpkgs, ... }:
-    let
-      pkgs = import nixpkgs { system = "x86_64-linux"; };
-    in
-    {
-      devShells.x86_64-linux.default = pkgs.buildFHSEnv {
-        name = "klippermod-dev-shell-fhs";
-
-        targetPkgs = ps: with ps; [
-          bash
-          git
-          gcc
-          binutils
-          glibc
-          gnumake
-          unzip
-          file
-          python3
-          bc
-          xz
-          bzip2
-          cpio
-          wget
-        ];
-
-        runScript = "bash";
+  outputs =
+    inputs@{ flake-parts, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      imports = [ ];
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "aarch64-darwin"
+        "x86_64-darwin"
+      ];
+      perSystem =
+        {
+          config,
+          self',
+          inputs',
+          pkgs,
+          system,
+          ...
+        }:
+        {
+          devShells.default =
+            (pkgs.buildFHSEnv {
+              name = "buildroot";
+              targetPkgs =
+                pkgs:
+                (
+                  with pkgs;
+                  [
+                    (lib.hiPrio gcc)
+                    file
+                    gnumake
+                    ncurses.dev
+                    pkg-config
+                    unzip
+                    wget
+                    (libxcrypt.override {
+                      enableHashes = "glibc";
+                    })
+                  ]
+                  ++ pkgs.linux.nativeBuildInputs
+                );
+            }).env;
+        };
+      flake = {
       };
     };
 }
