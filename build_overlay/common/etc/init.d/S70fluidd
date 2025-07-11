@@ -1,14 +1,14 @@
 #!/bin/sh
 #
-# Starts busbox httpd for mainsail.
+# Starts busybox httpd for fluidd.
 #
 
-WEBROOT=/root/printer_software/web/fluidd
+WEBROOT=/opt/fluidd
 PID_FILE=/run/httpd_fluidd.pid
 
 start() {
     # start busybox httpd
-    start-stop-daemon -S -b -m -p $PID_FILE --exec httpd -- -p 4001 -f -h $WEBROOT
+    start-stop-daemon -S -b -m -p $PID_FILE --exec httpd -- -p 4000 -f -h $WEBROOT
 }
 
 stop() {
