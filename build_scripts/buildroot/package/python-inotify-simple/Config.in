@@ -1,0 +1,7 @@
+config BR2_PACKAGE_PYTHON_INOTIFY_SIMPLE
+	bool "python-inotify-simple"
+	depends on BR2_LINUX_KERNEL
+	depends on BR2_USE_MMU
+	help
+	  inotify-simple provides a simple interface to Linux inotify.
+	  https://pypi.org/project/inotify_simple/
