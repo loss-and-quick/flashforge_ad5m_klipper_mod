@@ -1,0 +1,9 @@
+config BR2_PACKAGE_PYTHON_IMPORTLIB_METADATA
+	bool "python-importlib-metadata"
+	select BR2_PACKAGE_PYTHON_ZIPP
+	select BR2_PACKAGE_HOST_PYTHON_SETUPTOOLS_SCM
+	select BR2_PACKAGE_HOST_PYTHON_COHERENT_LICENSED
+	help
+	  Read metadata from Python packages.
+
+	  https://github.com/python/importlib_metadata
