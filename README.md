@@ -4,7 +4,7 @@
 [![NoScreen](docs/images/no_screen_01_thumb.jpg)](docs/images/no_screen_01.jpg)
 [![KlipperScreen](docs/images/klipper_screen_01_thumb.jpg)](docs/images/klipper_screen_01.jpg)
 
-# Klipper Mod for Flashforge Adventurer 5M (Pro)
+# Klipper Mod for Flashforge Adventurer 5M (Pro) for STM MCU's mod
 
 This is an *unofficial* mod to run Moonraker, custom Klipper, Mainsail & Fluidd on the Flashforge AD5M (Pro) 3D printers and unlock the full power of open source software.
 
@@ -17,10 +17,9 @@ Klipper Mod for the AD5M is designed to be fully removable and not break any fun
 
 ## Feature Overview
 
-- [Klipper](https://www.klipper3d.org/) 0.11 ‒ with improved configuration and default macros
+- [Klipper](https://www.klipper3d.org/) 0.13 ‒ with improved configuration and default macros, along with support for load cell.
 - [Moonraker](https://github.com/Arksine/moonraker) on port 7125
-- [Mainsail](https://docs.mainsail.xyz/) on port 4000
-- [Fluidd](https://docs.fluidd.xyz/) on port 4001
+- Switchable Web frontends ([Fluidd](https://docs.fluidd.xyz/) or [Mainsail](https://docs.mainsail.xyz/)) on port 4000
 - [KlipperScreen](https://klipperscreen.readthedocs.io/en/latest/) ‒ separate  build variant
 - [Guppyscreen](https://github.com/ballaswag/guppyscreen) ‒ separate preview build variant
 - Camera streaming via [ustreamer](https://github.com/pikvm/ustreamer) on port 8080
@@ -31,9 +30,8 @@ Klipper Mod for the AD5M is designed to be fully removable and not break any fun
 - [Audio](https://pypi.org/project/ff-adm5-audio/) via buzzer (can play simple Midis)
 - [LCD backlight](https://pypi.org/project/ff-ad5m-backlight/) control 
 - Automatic USB flash drive mounting
-- "Dual boot" with stock Flashforge software
 
-All features of the mod run directly on the printer built-in system (Allwinner T113-S3 with 128MB RAM). No additional hardware is required. 
+All features of the mod run directly on the printer built-in system (Allwinner T113-S3 with 128MB RAM), but need to swap stock mcu to stm32f103!
 
 ## Getting Started
 
