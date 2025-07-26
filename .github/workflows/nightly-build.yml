@@ -1,0 +1,206 @@
+name: Nightly firmware build
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      build_variants:
+        description: 'Build variants (space-separated, e.g. "lite klipperscreen")'
+        required: false
+        default: 'lite'
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    env:
+      BUILD_VARIANT: ${{ github.event.inputs.build_variants || 'lite' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          submodules: recursive
+
+      - name: Update submodules to latest remote commits
+        run: git submodule update --init --recursive --remote
+
+      - name: Disable upstream duplicates of project-local Buildroot packages
+        run: |
+          PROJECT_PKGS_DIR="build_scripts/buildroot/package"
+          UPSTREAM_PKGS_DIR="submodules/buildroot/package"
+          CONFIG_IN="${UPSTREAM_PKGS_DIR}/Config.in"
+          for pkg in $(find "$PROJECT_PKGS_DIR" -maxdepth 1 -mindepth 1 -type d -printf '%f\n'); do
+            if [ -d "${UPSTREAM_PKGS_DIR}/${pkg}" ]; then
+              echo "⚠️ Removing upstream duplicate of ${pkg}"
+              rm -rf "${UPSTREAM_PKGS_DIR}/${pkg}"
+              sed -i "/package\/${pkg//\//\\/}\/Config.in/s/^/#/" "$CONFIG_IN"
+            fi
+          done
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git make gcc g++ libncurses-dev bc bison flex libssl-dev \
+            libelf-dev python3 python3-pip python3-venv build-essential cmake unzip wget jq curl
+
+      - name: Restore Buildroot host
+        id: cache-host
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            build_output/buildroot/sdk/host
+            build_output/buildroot/sdk/staging
+          key: br-host-${{ hashFiles('build_scripts/buildroot/.config') }}
+          restore-keys: br-host-
+
+      - name: Restore Buildroot downloads
+        id: cache-dl
+        uses: actions/cache/restore@v4
+        with:
+          path: build_output/buildroot/dl
+          key: br-dl-v1
+          restore-keys: br-dl-
+
+      - name: Restore ccache
+        id: cache-cc
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.ccache
+          key: br-ccache-${{ github.ref_name }}
+          restore-keys: br-ccache-
+
+      - name: Get available plugins
+        id: plugins
+        run: |
+          plugins_dir="build_scripts/buildroot/configs"
+          list=$(find "$plugins_dir" -type f -name "plugin-*" -exec basename {} \; | sed 's/plugin-//')
+          echo "PLUGINS=${list}" >> $GITHUB_OUTPUT
+
+      - name: Build variants with plugins
+        run: |
+          variants="${{ env.BUILD_VARIANT }}"
+          IFS=' ' read -ra plugins <<< "${{ steps.plugins.outputs.PLUGINS }}"
+          for variant in $variants; do
+            make $variant
+            selected_plugins=()
+            for plugin in "${plugins[@]}"; do
+              selected_plugins+=("$plugin")
+              make $variant WITH_PLUGINS="${selected_plugins[*]}"
+            done
+          done
+
+      - name: Save Buildroot host
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            build_output/buildroot/sdk/host
+            build_output/buildroot/sdk/staging
+          key: ${{ steps.cache-host.outputs.cache-primary-key }}
+
+      - name: Save Buildroot downloads
+        if: steps.cache-dl.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build_output/buildroot/dl
+          key: br-dl-v1
+
+      - name: Save ccache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.ccache
+          key: ${{ steps.cache-cc.outputs.cache-primary-key }}
+
+      - name: Find firmware, MCU, and compute hashes
+        id: firmware
+        run: |
+          mkdir -p release_artifacts mcu_artifacts build_hash
+          # MCU files: .hex .bin .elf .uf2 .img .fw .zip
+          find build_output/packages -type f \( -iname "*.hex" -o -iname "*.bin" -o -iname "*.elf" -o -iname "*.uf2" -o -iname "*.img" -o -iname "*.fw" -o -iname "*.zip" \) -exec cp {} mcu_artifacts/ \;
+          # Firmware: *.tgz
+          find build_output/packages -type f -name "*.tgz" -exec cp {} release_artifacts/ \;
+          # SHA256
+          for f in release_artifacts/*; do sha256sum "$f" >> build_hash/firmware.sha256; done
+          for f in mcu_artifacts/*; do sha256sum "$f" >> build_hash/mcu.sha256; done
+          cat build_hash/firmware.sha256 build_hash/mcu.sha256 > build_hash/all.sha256
+
+      - name: Get latest release firmware for comparison
+        run: |
+          mkdir previous || true
+          gh release download --repo ${{ github.repository }} --pattern '*.tgz' --dir previous || true
+          if compgen -G "previous/*.tgz" > /dev/null; then
+            sha256sum previous/*.tgz > build_hash/previous.sha256
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compare hashes
+        id: compare
+        run: |
+          if [ -f build_hash/previous.sha256 ]; then
+            sort build_hash/firmware.sha256 > build_hash/current_sorted.sha256
+            sort build_hash/previous.sha256 > build_hash/previous_sorted.sha256
+            if diff -q build_hash/current_sorted.sha256 build_hash/previous_sorted.sha256 > /dev/null; then
+              echo "NO_CHANGE=true" >> $GITHUB_ENV
+            else
+              echo "NO_CHANGE=false" >> $GITHUB_ENV
+            fi
+          else
+            echo "NO_CHANGE=false" >> $GITHUB_ENV
+          fi
+
+      - name: Collect submodule versions
+        if: env.NO_CHANGE == 'false'
+        run: |
+          echo "### Submodule versions" > release_notes.md
+          git submodule status --recursive | \
+            awk '{ sub(/.*\//,"",$2); if (match($0,/\(([^)]+)\)/,v)) { gsub(/^remotes\/origin\//,"",v[1]); printf "- %s (%s)\n", $2, v[1] } }' >> release_notes.md
+
+      - name: Collect main package versions
+        if: env.NO_CHANGE == 'false'
+        run: |
+          {
+            echo ""
+            echo "### Package versions"
+            grep -E '_VERSION\s*=\s*' build_scripts/buildroot/package/guppyscreen/guppyscreen.mk | head -1 | sed 's/^/- guppyscreen: /'
+            grep -E '_VERSION\s*=\s*' build_scripts/buildroot/package/fluidd/fluidd.mk | head -1 | sed 's/^/- fluidd: /'
+            grep -E '_VERSION\s*=\s*' build_scripts/buildroot/package/klipper/klipper.mk | head -1 | sed 's/^/- klipper: /'
+            grep -E '_VERSION\s*=\s*' build_scripts/buildroot/package/klipperscreen/klipperscreen.mk | head -1 | sed 's/^/- klipperscreen: /'
+            grep -E '_VERSION\s*=\s*' build_scripts/buildroot/package/moonraker/moonraker.mk | head -1 | sed 's/^/- moonraker: /'
+          } >> release_notes.md
+
+      - name: Compose artifact summary
+        if: env.NO_CHANGE == 'false'
+        run: |
+          {
+            echo ""
+            echo "### Firmware files"
+            ls release_artifacts | sed 's/^/  - /'
+            echo ""
+            echo "### MCU firmware files"
+            ls mcu_artifacts | sed 's/^/  - /'
+            echo ""
+            echo "### SHA256 sums"
+            cat build_hash/all.sha256
+          } >> release_notes.md
+
+      - name: Get today date
+        if: env.NO_CHANGE == 'false'
+        id: date
+        run: echo "today=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+      - name: Create release if firmware changed
+        if: env.NO_CHANGE == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.date.outputs.today }}
+          name: ${{ steps.date.outputs.today }}
+          body_path: release_notes.md
+          files: |
+            release_artifacts/*
+            mcu_artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
