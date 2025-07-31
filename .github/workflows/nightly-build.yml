@@ -45,15 +45,15 @@ jobs:
           sudo apt install -y git make gcc g++ libncurses-dev bc bison flex libssl-dev \
             libelf-dev python3 python3-pip python3-venv build-essential cmake unzip wget jq curl
 
-      - name: Restore Buildroot host
-        id: cache-host
+      - name: Restore Buildroot sdk
+        id: cache-sdk
         uses: actions/cache/restore@v4
         with:
           path: |
-            build_output/buildroot/sdk/host
+            build_output/buildroot/sdk/sdk
             build_output/buildroot/sdk/staging
-          key: br-host-${{ hashFiles('build_scripts/buildroot/.config') }}
-          restore-keys: br-host-
+          key: br-sdk-${{ hashFiles('build_scripts/buildroot/.config') }}
+          restore-keys: br-sdk-
 
       - name: Restore Buildroot downloads
         id: cache-dl
@@ -91,14 +91,14 @@ jobs:
             done
           done
 
-      - name: Save Buildroot host
+      - name: Save Buildroot sdk
         if: always()
         uses: actions/cache/save@v4
         with:
           path: |
-            build_output/buildroot/sdk/host
+            build_output/buildroot/sdk/sdk
             build_output/buildroot/sdk/staging
-          key: ${{ steps.cache-host.outputs.cache-primary-key }}
+          key: ${{ steps.cache-sdk.outputs.cache-primary-key }}
 
       - name: Save Buildroot downloads
         if: steps.cache-dl.outputs.cache-hit != 'true'
