@@ -71,6 +71,19 @@ jobs:
           key: br-ccache-${{ github.ref_name }}
           restore-keys: br-ccache-
 
+      - name: Build sdk
+        run: |
+          make sdk >/dev/null 2>&1
+
+      - name: Save Buildroot sdk
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            build_output/buildroot/sdk/sdk
+            build_output/buildroot/sdk/staging
+          key: ${{ steps.cache-sdk.outputs.cache-primary-key }}
+
       - name: Get available plugins
         id: plugins
         run: |
@@ -83,22 +96,13 @@ jobs:
           variants="${{ env.BUILD_VARIANT }}"
           IFS=' ' read -ra plugins <<< "${{ steps.plugins.outputs.PLUGINS }}"
           for variant in $variants; do
-            make $variant 1>/dev/null
+            make $variant >/dev/null 2>&1
             selected_plugins=()
             for plugin in "${plugins[@]}"; do
               selected_plugins+=("$plugin")
-              make $variant WITH_PLUGINS="${selected_plugins[*]}" 1>/dev/null
+              make $variant WITH_PLUGINS="${selected_plugins[*]}" >/dev/null 2>&1
             done
           done
-
-      - name: Save Buildroot sdk
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            build_output/buildroot/sdk/sdk
-            build_output/buildroot/sdk/staging
-          key: ${{ steps.cache-sdk.outputs.cache-primary-key }}
 
       - name: Save Buildroot downloads
         if: steps.cache-dl.outputs.cache-hit != 'true'
