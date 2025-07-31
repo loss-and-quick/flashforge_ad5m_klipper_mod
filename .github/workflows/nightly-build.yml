@@ -83,11 +83,11 @@ jobs:
           variants="${{ env.BUILD_VARIANT }}"
           IFS=' ' read -ra plugins <<< "${{ steps.plugins.outputs.PLUGINS }}"
           for variant in $variants; do
-            make $variant
+            make $variant 1>/dev/null
             selected_plugins=()
             for plugin in "${plugins[@]}"; do
               selected_plugins+=("$plugin")
-              make $variant WITH_PLUGINS="${selected_plugins[*]}"
+              make $variant WITH_PLUGINS="${selected_plugins[*]}" 1>/dev/null
             done
           done
 
