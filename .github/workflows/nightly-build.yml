@@ -52,7 +52,7 @@ jobs:
           path: |
             build_output/buildroot/sdk/sdk
             build_output/buildroot/sdk/staging
-          key: br-sdk-${{ hashFiles('build_scripts/buildroot/.config') }}
+          key: br-sdk-${{ github.sha }}
           restore-keys: br-sdk-
 
       - name: Restore Buildroot downloads
