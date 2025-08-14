@@ -1,6 +1,0 @@
-config BR2_PACKAGE_PYTHON_MSGSPEC
-	bool "python-msgspec"
-	help
-	  A fast and friendly binary serialization library for Python.
-
-	  https://pypi.org/project/msgspec/

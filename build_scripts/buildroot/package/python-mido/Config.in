@@ -1,6 +1,0 @@
-config BR2_PACKAGE_PYTHON_MIDO
-	bool "python-mido"
-	help
-	  Mido is a library for working with MIDI messages and ports.
-
-	  https://github.com/mido/mido
