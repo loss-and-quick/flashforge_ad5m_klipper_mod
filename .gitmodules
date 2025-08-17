@@ -1,3 +1,6 @@
 [submodule "submodules/buildroot"]
 	path = submodules/buildroot
 	url = git@github.com:loss-and-quick/buildroot-flashforge-5m.git
+[submodule "printer_configs/web"]
+	path = printer_configs/web
+	url = https://github.com/mainsail-crew/mainsail-config.git
