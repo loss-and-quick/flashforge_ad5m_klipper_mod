@@ -149,3 +149,11 @@ for overlay in "$BUILD_OVERLAYS"/plugin-*; do
         fi
     done
 done
+
+mkdir -p "$BUILD_PACKAGE"
+
+log_info "Copying mcu's firmwares to $(basename $BUILD_PACKAGE) directory..."
+cp "$TARGET_ROOT/opt/klipper/firmware"/* "$BUILD_PACKAGE/" || true
+
+log_info "Copying mcu's bootloaders to $(basename $BUILD_PACKAGE) directory..."
+cp "$TARGET_ROOT/opt/katapult"/* "$BUILD_PACKAGE/" || true
