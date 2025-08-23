@@ -1,0 +1,22 @@
+config BR2_PACKAGE_KATAPULT
+	bool "katapult"
+	select BR2_PACKAGE_PYTHON_SERIAL
+	select BR2_PACKAGE_PYTHON_CAN
+	help
+	  Configurable bootloader for Klipper
+
+	  https://github.com/Arksine/katapult
+
+config BR2_PACKAGE_KATAPULT_CONFIGS
+	string "Katapult MCU Configuration Files"
+	depends on BR2_PACKAGE_KATAPULT
+	help
+	  Specify a space-separated list of MCU configuration files for bootloader
+	  compilation. Each file must be a valid Katapult configuration file in
+	  the .config format.
+
+	  Example: "/path/to/mcu1.config /path/to/mcu2.config"
+
+	  Note: Configuration file names must be unique.
+
+	  If this field is left empty, no bootloader firmware will be generated.
