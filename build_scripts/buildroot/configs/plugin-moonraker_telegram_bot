@@ -1,0 +1,4 @@
+# Moonraker telegram bot plugin of AD5M Klipper Mod
+
+BR2_PACKAGE_MOONRAKER=y
+BR2_PACKAGE_MOONRAKER_TELEGRAM_BOT=y

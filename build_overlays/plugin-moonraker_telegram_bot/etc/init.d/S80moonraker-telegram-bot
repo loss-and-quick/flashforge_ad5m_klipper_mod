@@ -1,0 +1,44 @@
+#!/bin/sh
+#
+# Start moonraker-telegram-bot
+#
+
+PYTHON=/usr/bin/python3
+MOONRAKER_TELEGRAM_BOT=/opt/moonraker-telegram-bot/bot/main.py
+MOONRAKER_TELEGRAM_BOT_CONF=/root/printer_data/config/telegram.conf
+MOONRAKER_TELEGRAM_BOT_LOG=/root/printer_data/logs/moonraker-telegram-bot.log
+PID_FILE=/run/moonraker-telegram-bot.pid
+MOONRAKER_TELEGRAM_BOT_NICENESS=+10
+
+start() {
+    mkdir -p $(dirname $MOONRAKER_TELEGRAM_BOT_LOG) # make sure the log directory exists
+    export HOME=/root
+    start-stop-daemon -S -b -m -p $PID_FILE -N $MOONRAKER_TELEGRAM_BOT_NICENESS --exec $PYTHON -- $MOONRAKER_TELEGRAM_BOT -c $MOONRAKER_TELEGRAM_BOT_CONF -l $MOONRAKER_TELEGRAM_BOT_LOG
+}
+
+stop() {
+    start-stop-daemon -K -q -p $PID_FILE
+}
+
+restart() {
+    stop
+    sleep 2
+    start
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart|reload)
+        restart
+        ;;
+  *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+esac
+
+exit $?
