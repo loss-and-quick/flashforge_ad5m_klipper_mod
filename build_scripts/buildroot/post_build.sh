@@ -50,6 +50,67 @@ install_tslib_requirements() {
     log_info "TSLIB configuration setup completed successfully."
 }
 
+add_klipper_includes() {
+    local printer_cfg_path="$TARGET_ROOT/root/printer_data/config/printer.cfg"
+    local includes_to_add=()
+    
+    log_info "Collecting Klipper configuration files that need to be included..."
+    
+    for cfg_file in "$@"; do
+        if [[ "$cfg_file" == *.cfg ]] && [[ "$(basename "$cfg_file")" != "printer.cfg" ]]; then
+            includes_to_add+=("$(basename "$cfg_file")")
+            log_info "  Found Klipper config to include: $(basename "$cfg_file")"
+        fi
+    done
+    
+    if [ ${#includes_to_add[@]} -eq 0 ]; then
+        log_info "No additional Klipper configuration files to include."
+        return 0
+    fi
+    
+    if [ ! -f "$printer_cfg_path" ]; then
+        log_warn "printer.cfg not found at $printer_cfg_path. Skipping include additions."
+        return 0
+    fi
+    
+    log_info "Adding include directives to printer.cfg..."
+    
+    local includes_text=""
+    includes_text+="\n# Auto-generated includes for plugins and variants\n"
+    for cfg_include in "${includes_to_add[@]}"; do
+        includes_text+="[include $cfg_include]\n"
+        log_info "  Will add include directive: [include $cfg_include]"
+    done
+    
+    if grep -q "^\[include " "$printer_cfg_path" 2>/dev/null; then
+        local last_include_line
+        last_include_line=$(grep -n "^\[include " "$printer_cfg_path" | tail -1 | cut -d: -f1)
+        if [ -n "$last_include_line" ]; then
+            sed -i "${last_include_line}a\\${includes_text}" "$printer_cfg_path" 2>/dev/null || {
+                log_warn "Failed to add includes using sed. Trying alternative method."
+                echo -e "$includes_text" >> "$printer_cfg_path"
+            }
+        else
+            echo -e "$includes_text" >> "$printer_cfg_path"
+        fi
+    else
+        local temp_file
+        if temp_file=$(mktemp 2>/dev/null); then
+            {
+                echo -e "# Auto-generated includes for plugins and variants"
+                for cfg_include in "${includes_to_add[@]}"; do
+                    echo "[include $cfg_include]"
+                done
+                echo ""
+                cat "$printer_cfg_path"
+            } > "$temp_file" && mv "$temp_file" "$printer_cfg_path"
+        else
+            echo -e "$includes_text" >> "$printer_cfg_path"
+        fi
+    fi
+    
+    log_info "Successfully updated printer.cfg with ${#includes_to_add[@]} include directive(s)."
+}
 
 log_info "Deactivating 'S35iptables' initscript (if exists)."
 chmod -x "$TARGET_ROOT/etc/init.d/S35iptables" || true
@@ -90,8 +151,48 @@ log_info "Initiating the copying process for essential printer configuration fil
 
 mkdir -p "$TARGET_ROOT/root/printer_data/config"
 
-log_info "  Copying all printer-specific configuration files from $GIT_ROOT/printer_configs/ to their final destination: /root/printer_data/config/."
-cp -r "$GIT_ROOT/printer_configs/"* "$TARGET_ROOT/root/printer_data/config"
+log_info "  Copying all printer-specific configuration files from $GIT_ROOT/printer_configs to their final destination: /root/printer_data/config/."
+cp -r "$GIT_ROOT/printer_configs/common/"* "$TARGET_ROOT/root/printer_data/config"
+
+COPIED_CFG_FILES=()
+
+if [ -n "$BUILD_VARIANT" ] && [ -d "$GIT_ROOT/printer_configs/variant-$BUILD_VARIANT" ]; then
+    log_info "Processing variant-specific files for: $BUILD_VARIANT"
+    for file in "$GIT_ROOT/printer_configs/variant-$BUILD_VARIANT"/*; do
+        if [ -f "$file" ]; then
+            filename=$(basename "$file")
+            log_info "  Copying variant file: $filename"
+            cp "$file" "$TARGET_ROOT/root/printer_data/config/"
+            if [[ "$filename" == *.cfg ]] && [[ "$filename" != "printer.cfg" ]]; then
+                COPIED_CFG_FILES+=("$filename")
+            fi
+        fi
+    done
+fi
+
+for plugin in "${BUILD_PLUGINS[@]}"; do
+    plugin_config_dir="$GIT_ROOT/printer_configs/plugin-$plugin"
+    if [ -d "$plugin_config_dir" ]; then
+        log_info "Processing plugin-specific files for: $plugin"
+        for file in "$plugin_config_dir"/*; do
+            if [ -f "$file" ]; then
+                filename=$(basename "$file")
+                log_info "  Copying plugin file: $filename"
+                cp "$file" "$TARGET_ROOT/root/printer_data/config/"
+                if [[ "$filename" == *.cfg ]] && [[ "$filename" != "printer.cfg" ]]; then
+                    COPIED_CFG_FILES+=("$filename")
+                fi
+            fi
+        done
+    else
+        log_warn "Plugin configuration directory not found: $plugin_config_dir"
+    fi
+done
+
+if [ ${#COPIED_CFG_FILES[@]} -gt 0 ]; then
+    add_klipper_includes "${COPIED_CFG_FILES[@]}"
+fi
+
 log_info "Printer configurations successfully copied and staged for deployment."
 
 log_info "Verifying and correcting D-Bus user and group entries in /etc/group, /etc/passwd, and /etc/shadow. This ensures D-Bus, a critical system message bus, operates securely."
