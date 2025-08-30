@@ -3,6 +3,9 @@
 # Variant Overlays
 BR2_ROOTFS_OVERLAY="../../build_overlays/common ../../build_overlays/variant-guppyscreen"
 
+# Disable iwd as wpa_supplicant is being used instead
+BR2_PACKAGE_IWD=n
+
 # wpa-supplicant 
 BR2_PACKAGE_WPA_SUPPLICANT=y
 BR2_PACKAGE_WPA_SUPPLICANT_NL80211=y
