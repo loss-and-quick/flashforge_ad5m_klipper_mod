@@ -2,7 +2,6 @@
 #
 # Show mod start screen on framebuffer.
 #
-KLIPPERSCREEN_PID_FILE=/run/klipperscreen.pid
 
 start() {
     # set to first, the LCD values are not initialized properly
