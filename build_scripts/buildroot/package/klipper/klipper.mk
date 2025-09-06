@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-KLIPPER_VERSION = 39c1ed55c22a41ce35041b02c5113b1a846900e9
+KLIPPER_VERSION = eedec4da621cfd71b34d12fb5c94b78dee11b129
 KLIPPER_SITE = https://github.com/loss-and-quick/klipper.git
 KLIPPER_SITE_METHOD = git
 
