@@ -9,7 +9,7 @@ TAG="camera-autostart"
 PID_FILE=/run/ustreamer.pid
 
 start() {
-    start-stop-daemon -S -b -m -p $PID_FILE --exec ustreamer -- -d /dev/$DEVNAME --device-timeout=2 -w 1 -I MMAP -s* -p 8080
+    start-stop-daemon -S -b -m -p $PID_FILE --exec ustreamer -- -d /dev/$DEVNAME --device-timeout=2 -w 1 -I MMAP -s* -p $HTTP_PORT
     [ $? -eq 0 ] && logger -t $TAG "started ustreamer for /dev/$DEVNAME" || logger -t $TAG "failed to start ustreamer"
 }
 
