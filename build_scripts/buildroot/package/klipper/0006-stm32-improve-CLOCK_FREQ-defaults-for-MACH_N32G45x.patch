@@ -1,0 +1,32 @@
+From ec3ae9cbf6e42d974633367be5a656f216f83c8d Mon Sep 17 00:00:00 2001
+From: minicx <minicx@disroot.org>
+Date: Sun, 10 Aug 2025 16:31:37 +0300
+Subject: [PATCH] stm32: improve CLOCK_FREQ defaults for MACH_N32G45x
+
+Update the default CLOCK_FREQ assignment for MACH_N32G45x:
+- Set 128 MHz if STM32_CLOCK_REF_INTERNAL is enabled
+- Set 144 MHz as the general default
+
+Signed-off-by: minicx <minicx@disroot.org>
+---
+ src/stm32/Kconfig | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/stm32/Kconfig b/src/stm32/Kconfig
+index df4f46efe..dc708e72f 100644
+--- a/src/stm32/Kconfig
++++ b/src/stm32/Kconfig
+@@ -211,8 +211,8 @@ config CLOCK_FREQ
+     default 520000000 if MACH_STM32H723
+     default 400000000 if MACH_STM32H743 || MACH_STM32H750
+     default 80000000 if MACH_STM32L412
+-    default 64000000 if MACH_N32G45x && STM32_CLOCK_REF_INTERNAL
+-    default 128000000 if MACH_N32G45x
++    default 128000000 if MACH_N32G45x && STM32_CLOCK_REF_INTERNAL
++    default 144000000 if MACH_N32G45x
+ 
+ config FLASH_SIZE
+     hex
+-- 
+2.51.0
+

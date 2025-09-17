@@ -1,0 +1,28 @@
+From c1dea307a55fe70cccce8cfd81a3b4fed519adfd Mon Sep 17 00:00:00 2001
+From: minicx <minicx@disroot.org>
+Date: Sun, 7 Sep 2025 18:39:57 +0300
+Subject: [PATCH] stm32: fix RAM size for N32G45x with 64kiB bootloader
+ offset
+
+Signed-off-by: minicx <minicx@disroot.org>
+---
+ src/stm32/Kconfig | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/stm32/Kconfig b/src/stm32/Kconfig
+index 1e0df93d2..df4f46efe 100644
+--- a/src/stm32/Kconfig
++++ b/src/stm32/Kconfig
+@@ -253,7 +253,8 @@ config RAM_SIZE
+     default 0x9000 if MACH_STM32G07x
+     default 0x24000 if MACH_STM32G0Bx
+     default 0x20000 if MACH_STM32H7
+-    default 0x10000 if MACH_N32G45x
++    default 0x10000 if MACH_N32G45x && !STM32_FLASH_START_10000
++    default 0x20000 if MACH_N32G45x && STM32_FLASH_START_10000
+ 
+ config STACK_SIZE
+     int
+-- 
+2.51.0
+

@@ -1,0 +1,742 @@
+From 8a5bffae807a8a9deffcc7f7860f4611e3153337 Mon Sep 17 00:00:00 2001
+From: minicx <minicx@disroot.org>
+Date: Sun, 22 Jun 2025 22:29:54 +0300
+Subject: [PATCH 1/2] [SQUASH] feat: Add FlashForge load cell support
+
+This patch introduces support for FlashForge 5M proprietary
+load cell sensor
+
+Signed-off-by: minicx <minicx@disroot.org>
+---
+ klippy/extras/flashforge_loadcell.py | 307 ++++++++++++++++++++++
+ src/stm32/Kconfig                    |   7 +
+ src/stm32/Makefile                   |   1 +
+ src/stm32/flashforge_load_cell.c     | 373 +++++++++++++++++++++++++++
+ 4 files changed, 688 insertions(+)
+ create mode 100644 klippy/extras/flashforge_loadcell.py
+ create mode 100644 src/stm32/flashforge_load_cell.c
+
+diff --git a/klippy/extras/flashforge_loadcell.py b/klippy/extras/flashforge_loadcell.py
+new file mode 100644
+index 000000000..17855ec17
+--- /dev/null
++++ b/klippy/extras/flashforge_loadcell.py
+@@ -0,0 +1,307 @@
++import logging
++import mcu
++
++from enum import Enum
++
++MCU_FLASHFORGE_RESPONSE = "flashforge_loadcell_response"
++
++MCU_CMD_FLASHFORGE_H1 = "flashforge_loadcell_h1"
++MCU_CMD_FLASHFORGE_H2 = "flashforge_loadcell_h2 weight=%u"
++MCU_CMD_FLASHFORGE_H3 = "flashforge_loadcell_h3 weight=%u"
++MCU_CMD_FLASHFORGE_H7 = "flashforge_loadcell_h7"
++MCU_CMD_FLASHFORGE_TEST = "flashforge_loadcell_test_cmd cmd=%*s"
++
++
++class Commands(Enum):
++    H1 = 'H1'
++    H2 = 'H2'
++    H3 = 'H3'
++    H7 = 'H7'
++    TEST = 'TEST'
++
++_MCU_CMD_MAP = {
++    MCU_CMD_FLASHFORGE_H1: Commands.H1,
++    MCU_CMD_FLASHFORGE_H2: Commands.H2,
++    MCU_CMD_FLASHFORGE_H3: Commands.H3,
++    MCU_CMD_FLASHFORGE_H7: Commands.H7,
++    MCU_CMD_FLASHFORGE_TEST: Commands.TEST,
++}
++
++class MCUResponse:
++    def __init__(self, params):
++        self.params = params
++        self.command_name = self._decode(params.get('command'))
++        self.status = self._decode(params.get('status'), 'unknown')
++        self.raw_response = self._decode(params.get('raw_response'))
++        try:
++            self.value = int(params.get('value', 0))
++        except (ValueError, TypeError):
++            self.value = 0
++
++    def _decode(self, value, default=''):
++        if value is None: return default
++        if isinstance(value, str): return value
++        try: return value.decode('utf-8')
++        except: return default
++
++
++class FlashforgeLoadCell:
++    def __init__(self, config):
++        self.printer = config.get_printer()
++        self.reactor = self.printer.get_reactor()
++        self.gcode = self.printer.lookup_object('gcode')
++        self.name = config.get_name().split()[-1]
++        self.mcu = mcu.get_printer_mcu(self.printer, config.get('mcu'))
++        self.mcu.register_response(self._handle_flashforge_response, MCU_FLASHFORGE_RESPONSE)
++        self.active_command = None
++        self.logger = logging.getLogger('klippy')
++        self.last_weight_grams = 0
++        self.tare_threshold = config.getint('tare_threshold', 50, 0)
++        self.tare_timeout = config.getfloat('tare_timeout', 10.0, 0.)
++        self.supported_cmds = {}
++        self.gcode.register_command(
++            "FLASHFORGE_LOAD_CELL_TARE",
++            self.cmd_LOAD_CELL_TARE,
++            desc="Starts the weight tare (zeroing) procedure"
++        )
++        self.gcode.register_command(
++            "FLASHFORGE_LOAD_CELL_CALIBRATE",
++            self.cmd_LOAD_CELL_CALIBRATE,
++            desc="Sends a calibration command"
++        )
++        self.gcode.register_command(
++            "FLASHFORGE_LOAD_CELL_SAVE_CALIBRATION",
++            self.cmd_LOAD_CELL_SAVE_CALIBRATION,
++            desc="Sends calibration save command"
++        )
++        self.gcode.register_command(
++            "FLASHFORGE_GET_LOAD_CELL_WEIGHT",
++            self.cmd_GET_LOAD_CELL_WEIGHT,
++            desc="Queries and displays the current weight"
++        )
++        self.gcode.register_command(
++            "FLASHFORGE_LOAD_CELL_TEST",
++            self.cmd_LOAD_CELL_TEST,
++            desc="Sends an arbitrary command to the loadcell"
++        )
++        self.printer.register_event_handler("klippy:connect", self._handle_connect)
++
++    def _handle_connect(self):
++        for cmd_name in (
++            MCU_CMD_FLASHFORGE_H1,
++            MCU_CMD_FLASHFORGE_H2,
++            MCU_CMD_FLASHFORGE_H3,
++            MCU_CMD_FLASHFORGE_H7,
++            MCU_CMD_FLASHFORGE_TEST
++        ):
++            cmd = self.mcu.try_lookup_command(cmd_name)
++            if not cmd:
++                raise Exception(
++                    f"{self.name}: Required MCU command '{cmd_name}' is not available. Check your firmware."
++                )
++            self.supported_cmds[cmd_name] = cmd
++
++    def _handle_flashforge_response(self, params):
++        response = MCUResponse(params)
++        self.logger.debug(f"{self.name}: Received response: {response.command_name}, status: {response.status}")
++
++        if self.active_command:
++            expected_cmd = self.active_command.get('cmd')
++            if response.command_name == expected_cmd.value:
++                completion = self.active_command.get('completion')
++                if not completion.test():
++                    completion.complete(response)
++                return
++
++        if response.command_name == Commands.H7.value and response.status == 'ok':
++            self.last_weight_grams = response.value
++
++    def _send_and_wait(self, command_name, params_list=None):
++        if self.active_command:
++            raise self.printer.command_error(f"{self.name}: Another G-Code command is already in progress.")
++
++        cmd_obj = self.supported_cmds.get(command_name)
++        cmd_enum = _MCU_CMD_MAP.get(command_name)
++        if not cmd_obj or not cmd_enum:
++            raise self.printer.command_error(f"{self.name}: MCU command '{command_name}' not found.")
++            
++        completion = self.reactor.completion()
++        self.active_command = {'cmd': cmd_enum, 'completion': completion}
++
++        try:
++            if params_list:
++                cmd_obj.send(params_list)
++            else:
++                cmd_obj.send()
++
++            response = completion.wait(self.reactor.monotonic() + 0.6)
++
++            if response is None:
++                raise self.printer.command_error(f"{self.name}: MCU command '{cmd_enum.value}' timed out.")
++            
++            if response.status != 'ok':
++                self._handle_mcu_error(response, command_name)
++            
++            return response
++        finally:
++            self.active_command = None
++        
++    def _handle_mcu_error(self, response: MCUResponse, cmd_name_fallback):
++        cmd_name = response.command_name or cmd_name_fallback
++        raise self.printer.command_error(
++            f"{self.name}: Command '{cmd_name}' failed with status "
++            f"'{response.status}'. MCU Response: '{response.raw_response}'")
++
++    def cmd_GET_LOAD_CELL_WEIGHT(self, gcmd):
++        response = self._send_and_wait(MCU_CMD_FLASHFORGE_H7)
++        self.last_weight_grams = response.value
++        gcmd.respond_info(f"{self.name}: Weight: {response.value} grams")
++
++    def cmd_LOAD_CELL_TARE(self, gcmd):
++        gcmd.respond_info(f"{self.name}: Starting tare procedure...")
++        deadline = self.reactor.monotonic() + self.tare_timeout
++        while self.reactor.monotonic() < deadline:
++            try:
++                self._send_and_wait(MCU_CMD_FLASHFORGE_H1)
++                response = self._send_and_wait(MCU_CMD_FLASHFORGE_H7)
++            except self.printer.command_error as e:
++                raise gcmd.error(f"{self.name}: Tare step failed: {e}")
++
++            if abs(response.value) <= self.tare_threshold:
++                gcmd.respond_info(f"{self.name}: Tare successful. Final weight: {response.value}g")
++                return
++            
++            gcmd.respond_info(f"{self.name}: Weight is {response.value}g, retrying...")
++            self.reactor.pause(self.reactor.monotonic() + 0.2)
++        raise gcmd.error(f"{self.name}: Tare failed to complete within {self.tare_timeout}s.")
++
++    def cmd_LOAD_CELL_CALIBRATE(self, gcmd):
++        weight = gcmd.get_int('WEIGHT', 500, 0)
++        self._send_and_wait(MCU_CMD_FLASHFORGE_H2, params_list=[weight])
++        gcmd.respond_info(f"{self.name}: Calibrate command sent.")
++
++    def cmd_LOAD_CELL_SAVE_CALIBRATION(self, gcmd):
++        weight = gcmd.get_int('WEIGHT', 200, 100, 500)
++        self._send_and_wait(MCU_CMD_FLASHFORGE_H3, params_list=[weight])
++        gcmd.respond_info(f"{self.name}: Save calibration command sent.")
++
++    def cmd_LOAD_CELL_TEST(self, gcmd):
++        cmd_str = gcmd.get('CMD', None)
++        if cmd_str is None:
++            raise gcmd.error(f"{self.name}: No CMD parameter provided.")
++        
++        cmd_bytes = cmd_str.encode('utf-8')
++        response = self._send_and_wait(MCU_CMD_FLASHFORGE_TEST, params_list=[cmd_bytes])
++        gcmd.respond_info(f"{self.name}: Response: {response.raw_response}")
++
++    def get_status(self, eventtime):
++        return {'force_g': self.last_weight_grams}
++
++class LoadCellSensor:
++    def __init__(self, config, loadcell):
++        self.loadcell = loadcell
++        self.printer = config.get_printer()
++        self.gcode = self.printer.lookup_object('gcode')
++        self.reactor = self.printer.get_reactor()
++        self.name = config.get_name().split()[-1]
++        self.logger = logging.getLogger('klippy')
++        self.sample_interval = config.getfloat('sample_interval', 0.2, 0.1)
++        self.check_only_when_printing = config.getboolean('check_only_when_printing', True)
++        try:
++            self.pause_resume = self.printer.load_object(
++                config, "pause_resume")
++        except config.error:
++            raise self.printer.config_error(
++                f"{self.name} requires [pause_resume] to work,"
++                " please add it to your config!")
++        self.max_force = config.getint('max_force', 900, 0)
++        self.default_max_force = self.max_force
++        self.overload_action = config.getchoice("overload_action", ["shutdown", "pause"], default="shutdown")
++        self.default_overload_action = self.overload_action
++        self.sample_timer = self.reactor.register_timer(self._sample)
++        self._callback = None
++
++        self.gcode.register_command("FLASHFORGE_LOAD_CELL_SET_MAX_FORCE", 
++                                   self.cmd_SET_LOADCELL_MAX_FORCE,
++                                   desc=f'Set max force and overload action for loadcell sensor')
++
++        self.printer.register_event_handler("klippy:connect", self._handle_connect)
++
++    def _handle_connect(self):
++        self.reactor.update_timer(self.sample_timer, self.reactor.NOW)
++
++    def _sample(self, eventtime):
++        try:
++            cmd_obj = self.loadcell.supported_cmds.get(MCU_CMD_FLASHFORGE_H7)
++            if cmd_obj and not self.loadcell.active_command:
++                cmd_obj.send()
++        except Exception as e:
++            self.logger.warning(f"{self.loadcell.name}: Could not send H7 poll: {e}")
++        weight = self.loadcell.last_weight_grams
++        if weight > self.max_force:
++            idle_timeout = self.printer.lookup_object("idle_timeout")
++            is_printing = idle_timeout.get_status(eventtime)["state"] == "Printing"
++            if not self.check_only_when_printing or is_printing:
++                msg = f"{self.loadcell.name}: Max force exceeded. Last weight was: {weight}g"
++                if self.overload_action == "shutdown":
++                    self.printer.invoke_shutdown(msg)
++                    return self.reactor.NEVER
++                else:
++                    if not self.pause_resume.is_paused:
++                        self.logger.warning(msg)
++                        self.pause_resume.send_pause_command()
++                        self.gcode.run_script_from_command("PAUSE\nM400\n")
++        measured_time = self.reactor.monotonic()
++        if self._callback:
++            self._callback(self.loadcell.mcu.estimated_print_time(measured_time), weight)
++
++        return measured_time + self.sample_interval
++
++    def cmd_SET_LOADCELL_MAX_FORCE(self, gcmd):
++        reset = gcmd.get_int('RESET', 0, 0, 1)
++        
++        if reset:
++            self.max_force = self.default_max_force
++            self.overload_action = self.default_overload_action
++            gcmd.respond_info(
++                f"{self.loadcell.name}: Max force reset to default value: {self.max_force}g; "
++                f"overload action reset to default value:'{self.overload_action}'"
++            )
++        else:
++            force = gcmd.get_int('FORCE', self.max_force, 0)
++            overload_action = gcmd.get('ACTION', self.overload_action, lambda x: str(x) if str(x) in ['shutdown', 'pause'] else None)
++            if not isinstance(overload_action, str):
++                raise gcmd.error("Must be 'shutdown' or 'pause'")
++            old_force = self.max_force
++            old_action = self.overload_action
++            self.max_force = force
++            self.overload_action = overload_action
++            gcmd.respond_info(
++                f"{self.loadcell.name}: Max force changed from {old_force}g to {self.max_force}g; "
++                f"overload action changed from '{old_action}' to '{self.overload_action}'"
++            )
++
++    def setup_callback(self, cb):
++        self._callback = cb
++
++    def get_report_time_delta(self):
++        return self.sample_interval
++
++    def setup_minmax(self, min_temp, max_temp):
++        pass
++
++    def get_temp(self, eventtime):
++        return self.loadcell.last_weight_grams, 0
++
++    def get_status(self, eventtime):
++        return {'temperature': self.loadcell.last_weight_grams, **self.loadcell.get_status(eventtime)}
++
++
++def load_config(config):
++    loadcell = FlashforgeLoadCell(config)
++    pheaters = config.get_printer().load_object(config, "heaters")
++    pheaters.add_sensor_factory(
++        "flashforge_loadcell",
++        lambda cfg: LoadCellSensor(cfg, loadcell)
++    )
++    return loadcell
+diff --git a/src/stm32/Kconfig b/src/stm32/Kconfig
+index 1e0df93d2..ddfcf7359 100644
+--- a/src/stm32/Kconfig
++++ b/src/stm32/Kconfig
+@@ -554,3 +554,10 @@ config STM32_CANBUS_PH13_PH14
+     default y if STM32_MMENU_CANBUS_PH13_PH14 || STM32_CMENU_CANBUS_PH13_PH14
+ 
+ endif
++
++config FLASHFORGE_LOADCELL
++    bool "Enable Flashforge Load Cell support"
++    depends on MACH_STM32F1 || MACH_N32G45x
++    help
++      Enable support for communicating with the Flashforge Load Cell via UART5.
++      Uses PC12 (TX) and PD2 (RX) by default.
+\ No newline at end of file
+diff --git a/src/stm32/Makefile b/src/stm32/Makefile
+index 3c158d518..206d9ec19 100644
+--- a/src/stm32/Makefile
++++ b/src/stm32/Makefile
+@@ -89,6 +89,7 @@ src-$(CONFIG_USBCANBUS) += $(usb-src-y) $(canbus-src-y)
+ src-$(CONFIG_USBCANBUS) += stm32/chipid.c generic/usb_canbus.c
+ src-$(CONFIG_WANT_HARD_PWM) += stm32/hard_pwm.c
+ src-$(CONFIG_HAVE_GPIO_SDIO) += stm32/sdio.c
++src-$(CONFIG_FLASHFORGE_LOADCELL) += stm32/flashforge_load_cell.c
+ 
+ # Binary output file rules
+ target-y += $(OUT)klipper.bin
+diff --git a/src/stm32/flashforge_load_cell.c b/src/stm32/flashforge_load_cell.c
+new file mode 100644
+index 000000000..25fb1ee0a
+--- /dev/null
++++ b/src/stm32/flashforge_load_cell.c
+@@ -0,0 +1,373 @@
++#include "autoconf.h"
++#include "board/armcm_boot.h" // armcm_enable_irq
++#include "board/irq.h"        // irq_disable, irq_enable
++#include "board/misc.h"       // timer_from_us, timer_read_time, timer_is_before
++#include "command.h"          // sendf, command_decode_ptr, DECL_COMMAND 
++#include "internal.h"         // enable_pclock, get_pclock_frequency
++#include "sched.h"            // struct task_wake, sched_wake_task, sched_check_wake, DECL_INIT, DECL_TASK, DECL_SHUTDOWN
++#include <stdint.h>           // uint8_t uint16_t uint32_t int32_t size_t
++#include <string.h>           // memset, strncpy, strstr, strcmp, memcpy, strlen
++#include <stdlib.h>           // strtol
++#include <ctype.h>            // isspace, isdigit
++
++#define UARTx UART5
++#define UARTx_IRQn UART5_IRQn
++
++#define BAUDRATE 9600U
++#define RXBUF_SIZE 64
++#define TXBUF_SIZE 64
++
++#define FLASHFORGE_CMD_TIMEOUT timer_from_us(500000) // 500 ms
++#define CMD_QUEUE_SIZE 6
++
++static const char CMD_H1[] = "H1 \0\0\0\0\0\0\0";
++static const char CMD_H7[] = "H7 \0\0\0\0\0\0\0";
++
++struct queued_cmd {
++  char cmd_name[16];
++  char cmd_data[32];
++  size_t cmd_len;
++};
++
++static struct queued_cmd cmd_queue[CMD_QUEUE_SIZE];
++
++static volatile uint8_t cmdq_head = 0, cmdq_tail = 0;
++
++enum flashforge_state { FLASHFORGE_IDLE, FLASHFORGE_CMD_SENT };
++
++struct flashforge_bridge_state {
++  uint8_t rxbuf[RXBUF_SIZE];
++  volatile uint16_t rx_head, rx_tail;
++  uint8_t txbuf[TXBUF_SIZE];
++  volatile uint16_t tx_head, tx_tail;
++
++  enum flashforge_state state;
++  char last_cmd_name[16];
++  uint32_t cmd_sent_time;
++
++  volatile uint8_t line_ready;
++  volatile uint8_t rx_overflow;
++};
++
++static struct flashforge_bridge_state bridge;
++
++static struct task_wake loadcell_wake;
++
++static void flashforge_loadcell_response_send(const char *status,
++                                              const char *command,
++                                              int32_t value,
++                                              const char *raw_response) {
++  sendf("flashforge_loadcell_response status=%s command=%s value=%i "
++        "raw_response=%s",
++        status, command, value, raw_response);
++}
++
++static void flashforge_loadcell_send(const char *data, size_t len) {
++  irq_disable();
++  for (size_t i = 0; i < len; i++) {
++    uint16_t next = (bridge.tx_head + 1) % TXBUF_SIZE;
++    if (next != bridge.tx_tail) {
++      bridge.txbuf[bridge.tx_head] = data[i];
++      bridge.tx_head = next;
++    } else {
++      break;
++    }
++  }
++  if (bridge.tx_head != bridge.tx_tail) {
++    UARTx->CR1 |= USART_CR1_TXEIE;
++  }
++  irq_enable();
++}
++
++static void try_send_next_queued_command(void) {
++  if (bridge.state == FLASHFORGE_IDLE && cmdq_tail != cmdq_head) {
++    struct queued_cmd *slot = &cmd_queue[cmdq_tail];
++    bridge.state = FLASHFORGE_CMD_SENT;
++    strncpy(bridge.last_cmd_name, slot->cmd_name,
++            sizeof(bridge.last_cmd_name) - 1);
++    bridge.last_cmd_name[sizeof(bridge.last_cmd_name) - 1] = '\0';
++    bridge.cmd_sent_time = timer_read_time();
++    flashforge_loadcell_send(slot->cmd_data, slot->cmd_len);
++    cmdq_tail = (cmdq_tail + 1) % CMD_QUEUE_SIZE;
++  }
++}
++
++void LOADCELL_UARTx_IRQHandler(void) {
++  uint32_t sr = UARTx->SR;
++
++  if (sr & (USART_SR_ORE | USART_SR_NE | USART_SR_FE | USART_SR_PE)) {
++    if (sr & USART_SR_ORE) {
++      (void)UARTx->DR;
++    }
++    UARTx->SR &= ~(USART_SR_NE | USART_SR_FE | USART_SR_PE);
++  }
++
++  if (sr & USART_SR_RXNE) {
++    char d = UARTx->DR;
++    uint16_t next = (bridge.rx_head + 1) % RXBUF_SIZE;
++    if (next != bridge.rx_tail) {
++      bridge.rxbuf[bridge.rx_head] = d;
++      bridge.rx_head = next;
++      if (d == '\n') {
++        bridge.line_ready = 1;
++        sched_wake_task(&loadcell_wake);
++      }
++    } else {
++      bridge.rx_overflow = 1;
++      sched_wake_task(&loadcell_wake);
++    }
++  }
++
++  if ((sr & USART_SR_TXE) && (UARTx->CR1 & USART_CR1_TXEIE)) {
++    if (bridge.tx_tail != bridge.tx_head) {
++      UARTx->DR = bridge.txbuf[bridge.tx_tail];
++      bridge.tx_tail = (bridge.tx_tail + 1) % TXBUF_SIZE;
++    } else {
++      UARTx->CR1 &= ~USART_CR1_TXEIE;
++    }
++  }
++}
++
++static int32_t parse_weight_from_response(const char *line) {
++    const char *g_ptr = strstr(line, " g");
++    
++    if (!g_ptr) {
++        return 0;
++    }
++
++    const char *p = g_ptr - 1;
++
++    while (p >= line && isspace((unsigned char)*p)) {
++        p--;
++    }
++
++    while (p >= line && isdigit((unsigned char)*p)) {
++        p--;
++    }
++
++    if (p < line || (*p != '-' && *p != '+')) {
++        p++;
++    }
++
++    return (int32_t)strtol(p, NULL, 10);
++}
++
++static void process_received_line(void) {
++  irq_disable();
++  uint16_t head = bridge.rx_head;
++  uint16_t tail = bridge.rx_tail;
++  bridge.line_ready = 0;
++  irq_enable();
++
++  if (tail == head || bridge.state != FLASHFORGE_CMD_SENT) {
++    if (tail != head) {
++      bridge.rx_tail = head;
++    }
++    return;
++  }
++
++  char line[RXBUF_SIZE];
++  size_t len = 0;
++  uint16_t pos = tail;
++  while (pos != head && len < sizeof(line) - 1) {
++    char c = bridge.rxbuf[pos];
++    if (c != '\r' && c != '\n') {
++      line[len++] = c;
++    }
++    pos = (pos + 1) % RXBUF_SIZE;
++  }
++  line[len] = '\0';
++
++  bridge.rx_tail = head;
++
++  const char *status = "error";
++  if (strstr(line, "ok.")) {
++    status = "ok";
++  }
++
++  int32_t weight_value = 0;
++  if (strcmp(bridge.last_cmd_name, "H7") == 0 && strcmp(status, "ok") == 0) {
++    weight_value = parse_weight_from_response(line);
++  }
++  flashforge_loadcell_response_send(status, bridge.last_cmd_name, weight_value,
++                                    line);
++
++  bridge.state = FLASHFORGE_IDLE;
++  try_send_next_queued_command();
++}
++
++void flashforge_loadcell_task(void) {
++  if (bridge.rx_overflow) {
++    bridge.rx_overflow = 0;
++    irq_disable();
++    bridge.rx_head = bridge.rx_tail;
++    irq_enable();
++    if (bridge.state == FLASHFORGE_CMD_SENT) {
++      flashforge_loadcell_response_send("error", bridge.last_cmd_name, 0,
++                                        "RX buffer overflow");
++      bridge.state = FLASHFORGE_IDLE;
++      try_send_next_queued_command();
++    }
++  }
++
++  if (!sched_check_wake(&loadcell_wake))
++    return;
++
++  if (bridge.line_ready) {
++    process_received_line();
++  }
++
++  if (bridge.state == FLASHFORGE_CMD_SENT &&
++      timer_is_before(bridge.cmd_sent_time + FLASHFORGE_CMD_TIMEOUT,
++                      timer_read_time())) {
++    flashforge_loadcell_response_send("timeout", bridge.last_cmd_name, 0, "");
++    bridge.state = FLASHFORGE_IDLE;
++    try_send_next_queued_command();
++  }
++}
++DECL_TASK(flashforge_loadcell_task);
++
++static void enqueue_flashforge_command(const char *cmd_name,
++                                       const char *cmd_data, size_t cmd_len) {
++  irq_disable();
++  uint8_t next = (cmdq_head + 1) % CMD_QUEUE_SIZE;
++  if (next == cmdq_tail) {
++    irq_enable();
++    flashforge_loadcell_response_send("error", cmd_name, 0,
++                                      "MCU command queue overflow");
++    return;
++  }
++  struct queued_cmd *slot = &cmd_queue[cmdq_head];
++  strncpy(slot->cmd_name, cmd_name, sizeof(slot->cmd_name) - 1);
++  slot->cmd_name[sizeof(slot->cmd_name) - 1] = '\0';
++  memcpy(slot->cmd_data, cmd_data, cmd_len);
++  slot->cmd_len = cmd_len;
++  cmdq_head = next;
++  irq_enable();
++}
++
++static void send_flashforge_command(const char *cmd_name, const char *cmd_data,
++                                    size_t cmd_len) {
++  enqueue_flashforge_command(cmd_name, cmd_data, cmd_len);
++  try_send_next_queued_command();
++}
++
++static void send_weight_command(const char *cmd_name, uint32_t weight) {
++  char cmd_data[32];
++  char *p = cmd_data;
++  size_t cmd_name_len = strlen(cmd_name);
++
++  if (cmd_name_len >= sizeof(cmd_data))
++    return;
++  memcpy(p, cmd_name, cmd_name_len);
++  p += cmd_name_len;
++
++  if ((p - cmd_data) + 3 >= sizeof(cmd_data))
++    return;
++  *p++ = ' ';
++  *p++ = 'S';
++
++  char *num_start = p;
++  unsigned long n = weight;
++
++  if (n == 0) {
++    if ((p - cmd_data) + 1 >= sizeof(cmd_data))
++      return;
++    *p++ = '0';
++  } else {
++    char *num_p = p;
++    while (n > 0 && (num_p - cmd_data) < sizeof(cmd_data)) {
++      *num_p++ = (n % 10) + '0';
++      n /= 10;
++    }
++    p = num_p;
++
++    char *start = num_start;
++    char *end = p - 1;
++    while (start < end) {
++      char tmp = *start;
++      *start = *end;
++      *end = tmp;
++      start++;
++      end--;
++    }
++  }
++
++  send_flashforge_command(cmd_name, cmd_data, (p - cmd_data));
++}
++
++// Command H1: Tare
++void command_flashforge_loadcell_h1(uint32_t *args) {
++  send_flashforge_command("H1", CMD_H1, sizeof(CMD_H1) - 1);
++}
++DECL_COMMAND(command_flashforge_loadcell_h1, "flashforge_loadcell_h1");
++
++// Command H2: Calibrate by known weight
++void command_flashforge_loadcell_h2(uint32_t *args) {
++  send_weight_command("H2", args[0]);
++}
++DECL_COMMAND(command_flashforge_loadcell_h2,
++             "flashforge_loadcell_h2 weight=%u");
++
++// Command H3: Save calibration and set weight threshold for Z-Probe pin
++void command_flashforge_loadcell_h3(uint32_t *args) {
++  send_weight_command("H3", args[0]);
++}
++DECL_COMMAND(command_flashforge_loadcell_h3,
++             "flashforge_loadcell_h3 weight=%u");
++
++// Command H7: Get current weight
++void command_flashforge_loadcell_h7(uint32_t *args) {
++  irq_disable();
++  // prevent queue clogging
++  if (cmdq_head != cmdq_tail) {
++    uint8_t last_idx = (cmdq_head - 1 + CMD_QUEUE_SIZE) % CMD_QUEUE_SIZE;
++    if (strcmp(cmd_queue[last_idx].cmd_name, "H7") == 0) {
++      irq_enable();
++      return;
++    }
++  }
++  irq_enable();
++  
++  send_flashforge_command("H7", CMD_H7, sizeof(CMD_H7) - 1);
++}
++DECL_COMMAND(command_flashforge_loadcell_h7, "flashforge_loadcell_h7");
++
++void command_flashforge_loadcell_test_cmd(uint32_t *args) {
++  uint32_t length = args[0];
++  char *cmd_str = (char *)command_decode_ptr(args[1]);
++  send_flashforge_command("TEST", cmd_str, length);
++}
++DECL_COMMAND(command_flashforge_loadcell_test_cmd,
++             "flashforge_loadcell_test_cmd cmd=%*s");
++
++void flashforge_loadcell_init(void) {
++  memset(&bridge, 0, sizeof(bridge));
++  bridge.state = FLASHFORGE_IDLE;
++
++  enable_pclock((uint32_t)UARTx);
++  gpio_clock_enable(GPIOC);
++  gpio_clock_enable(GPIOD);
++
++  // PC12 (TX) - AF output push-pull
++  GPIOC->CRH &= ~(0xF << 16);
++  GPIOC->CRH |= (0x9 << 16); // 1001 = AF PP, 10MHz
++
++  // PD2 (RX) - Floating input
++  GPIOD->CRL &= ~(0xF << 8);
++  GPIOD->CRL |= (0x4 << 8); // 0100 = Floating input
++
++  UARTx->CR1 = 0;
++  UARTx->CR2 = 0;
++  UARTx->CR3 = 0;
++  uint32_t pclk = get_pclock_frequency((uint32_t)UARTx);
++  UARTx->BRR = DIV_ROUND_CLOSEST(pclk, BAUDRATE);
++
++  UARTx->CR1 = USART_CR1_UE | USART_CR1_TE | USART_CR1_RE | USART_CR1_RXNEIE;
++
++  armcm_enable_irq(LOADCELL_UARTx_IRQHandler, UARTx_IRQn, 1);
++}
++DECL_INIT(flashforge_loadcell_init);
++
++void flashforge_loadcell_shutdown(void) { UARTx->CR1 &= ~USART_CR1_UE; }
++DECL_SHUTDOWN(flashforge_loadcell_shutdown);
+\ No newline at end of file
+-- 
+2.51.0
+

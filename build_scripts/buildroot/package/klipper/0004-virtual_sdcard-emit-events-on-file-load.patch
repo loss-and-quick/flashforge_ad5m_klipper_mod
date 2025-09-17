@@ -1,0 +1,30 @@
+From bc4ad96ab84e9276ca2c6bd4af81dee9f335b9a6 Mon Sep 17 00:00:00 2001
+From: minicx <minicx@disroot.org>
+Date: Fri, 13 Jun 2025 00:04:23 +0300
+Subject: [PATCH] virtual_sdcard: emit events on file load
+
+This change adds new Klipper events in the virtual_sdcard module:
+
+  * virtual_sdcard:load_file
+    Emitted whenever a new file is successfully opened for print.
+
+Signed-off-by: minicx <minicx@disroot.org>
+---
+ klippy/extras/virtual_sdcard.py | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/klippy/extras/virtual_sdcard.py b/klippy/extras/virtual_sdcard.py
+index 6dc49e2f5..aa6b77791 100644
+--- a/klippy/extras/virtual_sdcard.py
++++ b/klippy/extras/virtual_sdcard.py
+@@ -196,6 +196,7 @@ class VirtualSD:
+         self.file_position = 0
+         self.file_size = fsize
+         self.print_stats.set_current_file(filename)
++        self.printer.send_event("virtual_sdcard:load_file")
+     def cmd_M24(self, gcmd):
+         # Start/resume SD print
+         self.do_resume()
+-- 
+2.51.0
+
