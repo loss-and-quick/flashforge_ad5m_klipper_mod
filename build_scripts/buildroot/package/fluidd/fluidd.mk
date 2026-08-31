@@ -4,11 +4,11 @@
 #
 ################################################################################
 
-FLUIDD_VERSION = v1.34.4
+FLUIDD_VERSION = v1.36.2
 FLUIDD_SITE = https://github.com/fluidd-core/fluidd/releases/download/$(FLUIDD_VERSION)
 FLUIDD_SOURCE = fluidd.zip
 
-define FLUIDD_EXTRACT_CMDS 
+define FLUIDD_EXTRACT_CMDS
 	$(UNZIP) $(FLUIDD_DL_DIR)/$(FLUIDD_SOURCE) -d $(@D)/
 endef
 
@@ -18,4 +18,3 @@ define FLUIDD_INSTALL_TARGET_CMDS
 endef
 
 $(eval $(generic-package))
-
