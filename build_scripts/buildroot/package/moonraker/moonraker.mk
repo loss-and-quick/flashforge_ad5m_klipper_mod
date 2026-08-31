@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-MOONRAKER_VERSION = v0.9.3
+MOONRAKER_VERSION = v0.10.0
 MOONRAKER_SITE = https://github.com/Arksine/moonraker.git
 MOONRAKER_SITE_METHOD = git
 
