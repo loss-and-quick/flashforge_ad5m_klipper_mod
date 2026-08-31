@@ -4,8 +4,8 @@
 #
 ################################################################################
 
-KLIPPER_VERSION = 8db5d254e077e10583cfaff0d9e70e08263383e5
-KLIPPER_SITE = https://github.com/Klipper3d/klipper.git
+KLIPPER_VERSION = 007a46d936c3f79b438f594a43ab4f6af3066445
+KLIPPER_SITE = https://github.com/loss-and-quick/klipper.git
 KLIPPER_SITE_METHOD = git
 
 KLIPPER_LICENSE = GPL-3.0
