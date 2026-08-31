@@ -1,0 +1,42 @@
+From 0d3f2a1b9c8e4d5f6a7b8c9d0e1f2a3b4c5d6e7f Mon Sep 17 00:00:00 2001
+From: minicx <minicx@disroot.org>
+Date: Sat, 29 Aug 2026 18:50:00 +0300
+Subject: [PATCH] buildcommands: treat version from klippy/.version as a clean
+ build
+
+When Klipper is built from a source archive (e.g. via Buildroot) there
+is no git repository available. The version then comes from the
+klippy/.version file, which is deterministic. However build_version()
+still marks the build as unclean and appends a build timestamp and the
+hostname, producing a version string that never matches the host-side
+software_version (read from the same file without any suffix). This
+makes error_mcu.py report the MCUs as outdated after every rebuild.
+
+Treat a successful file_version() lookup as a clean build so no
+timestamp/hostname suffix is appended and the MCU version matches the
+host version exactly.
+
+Signed-off-by: minicx <minicx@disroot.org>
+---
+ scripts/buildcommands.py | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/scripts/buildcommands.py b/scripts/buildcommands.py
+--- a/scripts/buildcommands.py
++++ b/scripts/buildcommands.py
+@@ -497,10 +497,12 @@ def build_version(extra, cleanbuild):
+ def build_version(extra, cleanbuild):
+     version = git_version()
+     if not version:
+-        cleanbuild = False
+         version = file_version()
++        if version:
++            cleanbuild = True
+         if not version:
+             version = "?"
++            cleanbuild = False
+     elif 'dirty' in version:
+         cleanbuild = False
+     if not cleanbuild:
+-- 
+2.51.0
