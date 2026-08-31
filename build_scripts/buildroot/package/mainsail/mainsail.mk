@@ -4,9 +4,9 @@
 #
 ################################################################################
 
-MAINSAIL_VERSION = v2.14.0
+MAINSAIL_VERSION = v2.17.0
 MAINSAIL_SITE = https://github.com/mainsail-crew/mainsail/releases/download/$(MAINSAIL_VERSION)
-MAINSAIL_SOURCE=mainsail.zip
+MAINSAIL_SOURCE = mainsail.zip
 
 define MAINSAIL_EXTRACT_CMDS 
 	$(UNZIP) $(MAINSAIL_DL_DIR)/$(MAINSAIL_SOURCE) -d $(@D)/
