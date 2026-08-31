@@ -10,7 +10,7 @@ GUPPYSCREEN_SITE_METHOD = git
 GUPPYSCREEN_GIT_SUBMODULES = yes
 GUPPYSCREEN_LICENSE = GPL-3.0+
 GUPPYSCREEN_LICENSE_FILES = COPYING
-GUPPYSCREEN_DEPENDENCIES = libevdev
+GUPPYSCREEN_DEPENDENCIES = libevdev libevent
 
 define GUPPYSCREEN_BUILD_CMDS
 $(BASH) pushd $(@D)/lv_drivers; patch --forward -p1 < ../patches/0001-lv_driver_fb_ioctls_flashforge_ad5m.patch; popd;
