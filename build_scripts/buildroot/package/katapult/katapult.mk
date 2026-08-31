@@ -23,6 +23,7 @@ endif
 
 
 define KATAPULT_BUILD_MCU_FIRMWARES
+	rm -f $(TARGET_DIR)/opt/katapult/*.bin $(TARGET_DIR)/opt/katapult/*.elf
 	printf "%s-%s\n" \
       "$(KATAPULT_VERSION)" "Buildroot" \
       > $(@D)/.version

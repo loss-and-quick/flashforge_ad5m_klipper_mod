@@ -51,6 +51,7 @@ define KLIPPER_INSTALL_TARGET_CMDS
 endef
 
 define KLIPPER_BUILD_MCU_FIRMWARES
+	rm -f $(TARGET_DIR)/opt/klipper/firmware/*.bin $(TARGET_DIR)/opt/klipper/firmware/*.elf
 	$(if $(KLIPPER_MCU_CONFIGS_LIST),
 		printf "%s-%s\n" \
 			"$(KLIPPER_VERSION)" "Buildroot" \
