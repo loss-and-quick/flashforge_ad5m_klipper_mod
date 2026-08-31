@@ -13,6 +13,23 @@ ifneq ($(INVALID_PLUGINS),)
 $(error Unknown plugins: $(INVALID_PLUGINS))
 endif
 
+# MCU selection. Both boards default to the MCU the printer ships with;
+# MCU sets them at once, EBOARD_MCU / MAINBOARD_MCU override a single board.
+MCU_CONFIGS_DIR := build_scripts/components/mcu_configs
+AVAILABLE_MCUS := $(sort $(patsubst $(MCU_CONFIGS_DIR)/eboard_%,%,$(wildcard $(MCU_CONFIGS_DIR)/eboard_*)))
+DEFAULT_MCU := stm32f103
+
+MCU ?= $(DEFAULT_MCU)
+EBOARD_MCU ?= $(MCU)
+MAINBOARD_MCU ?= $(MCU)
+
+INVALID_MCUS = $(filter-out $(AVAILABLE_MCUS), $(sort $(EBOARD_MCU) $(MAINBOARD_MCU)))
+ifneq ($(INVALID_MCUS),)
+$(error Unknown MCUs: $(INVALID_MCUS))
+endif
+
+export EBOARD_MCU MAINBOARD_MCU
+
 all: packages checksums
 packages: sdk $(VARIANTS) uninstall
 
@@ -85,6 +102,9 @@ help:
 	@echo "AVAILABLE PLUGINS:"
 	@echo "  $(AVAILABLE_PLUGINS)"
 	@echo ""
+	@echo "AVAILABLE MCUS:"
+	@echo "  $(AVAILABLE_MCUS) (default: $(DEFAULT_MCU))"
+	@echo ""
 	@echo "MAIN TARGETS:"
 	@echo "  all                    - Build all variants and create packages with checksums"
 	@echo "  packages               - Build SDK, all variants, and uninstall package"
@@ -96,6 +116,13 @@ help:
 	@echo "PLUGIN USAGE:"
 	@echo "  Plugins are embedded into variants using the WITH_PLUGINS parameter."
 	@echo "  Multiple plugins can be specified as a space-separated list."
+	@echo ""
+	@echo "MCU USAGE:"
+	@echo "  The toolhead board (eboard) and the mainboard (mcu) exist with"
+	@echo "  different MCUs depending on the printer revision. MCU selects the"
+	@echo "  MCU of both boards, EBOARD_MCU and MAINBOARD_MCU override a single"
+	@echo "  board. Builds for a non-default MCU get their own build directory"
+	@echo "  and package name."
 	@echo ""
 	@echo "EXAMPLES:"
 	@echo "  # Build all variants without plugins"
@@ -117,6 +144,12 @@ help:
 	@echo "  make klipperscreen WITH_PLUGINS=\"shaketune moonraker_tg\""
 	@echo "  make guppyscreen WITH_PLUGINS=\"shaketune\""
 	@echo ""
+	@echo "  # Build for a printer whose boards both carry an N32G455"
+	@echo "  make MCU=n32g455"
+	@echo ""
+	@echo "  # Build for a replacement toolhead board only"
+	@echo "  make EBOARD_MCU=n32g455"
+	@echo ""
 	@echo "CLEAN TARGETS:"
 	@echo "  sdk_clean              - Clean SDK build directory"
 	@echo "  <variant>_clean        - Clean specific variant build directory"
@@ -130,7 +163,8 @@ help:
 	@echo ""
 	@echo "NOTES:"
 	@echo "  - Plugins are automatically detected from build_scripts/buildroot/configs/plugin-*"
+	@echo "  - MCUs are automatically detected from $(MCU_CONFIGS_DIR)/eboard_*"
 	@echo "  - Each plugin+variant combination creates a separate build directory"
 	@echo "  - Package names include plugin information for easy identification"
-	@echo "  - Build directories: variant-<name>[-<plugin1>-<plugin2>...]"
-	@echo "  - Package names: Adventurer5M-KlipperMod-<version>-<variant>[-<plugin1>-<plugin2>...].tgz"
+	@echo "  - Build directories: variant-<name>[-<mcu>][-<plugin1>-<plugin2>...]"
+	@echo "  - Package names: Adventurer5M-KlipperMod-<version>-<variant>[-<mcu>][-<plugin1>-<plugin2>...].tgz"
