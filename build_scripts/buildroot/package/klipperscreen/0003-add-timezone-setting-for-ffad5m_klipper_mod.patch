@@ -10,7 +10,7 @@ Subject: [PATCH] add timezone setting for ffad5m_klipper_mod
  3 files changed, 39 insertions(+), 3 deletions(-)
 
 diff --git a/ks_includes/config.py b/ks_includes/config.py
-index 65f7461e..c0dbe813 100644
+index 2bd35d29..3c2fc8bc 100644
 --- a/ks_includes/config.py
 +++ b/ks_includes/config.py
 @@ -7,6 +7,8 @@ import logging
@@ -22,7 +22,7 @@ index 65f7461e..c0dbe813 100644
  from io import StringIO
  
  SCREEN_BLANKING_OPTIONS = [
-@@ -167,7 +169,7 @@ class KlipperScreenConfig:
+@@ -177,7 +179,7 @@ class KlipperScreenConfig:
                  strs = (
                      'default_printer', 'language', 'print_sort_dir', 'theme', 'screen_blanking_printing', 'font_size',
                      'print_estimate_method', 'screen_blanking', "screen_on_devices", "screen_off_devices", 'print_view',
@@ -31,7 +31,7 @@ index 65f7461e..c0dbe813 100644
                  )
                  numbers = (
                      'job_complete_timeout', 'job_error_timeout', 'move_speed_xy', 'move_speed_z',
-@@ -275,6 +277,10 @@ class KlipperScreenConfig:
+@@ -286,6 +288,10 @@ class KlipperScreenConfig:
                  "value": "3600", "callback": screen.set_screenblanking_printing_timeout, "options": [
                      {"name": _("Never"), "value": "off"}]
              }},
@@ -42,7 +42,7 @@ index 65f7461e..c0dbe813 100644
              {"24htime": {"section": "main", "name": _("24 Hour Time"), "type": "binary",
                           "tooltip": _("Disable for 12hs with am / pm"),
                           "value": "True"}},
-@@ -369,6 +375,16 @@ class KlipperScreenConfig:
+@@ -380,6 +386,16 @@ class KlipperScreenConfig:
                  "value": f"{num}"
              })
  
@@ -60,7 +60,7 @@ index 65f7461e..c0dbe813 100644
              name = list(item)[0]
              vals = item[name]
 diff --git a/panels/base_panel.py b/panels/base_panel.py
-index 0b795453..164a8251 100644
+index 705feb11..b492fd5d 100644
 --- a/panels/base_panel.py
 +++ b/panels/base_panel.py
 @@ -374,10 +374,10 @@ class BasePanel(ScreenPanel):
@@ -77,7 +77,7 @@ index 0b795453..164a8251 100644
                  self.control['time'].set_text(f'{now:%H:%M }')
              else:
 diff --git a/screen.py b/screen.py
-index 22375e2d..8e96b915 100755
+index 29879e61..29361ec1 100755
 --- a/screen.py
 +++ b/screen.py
 @@ -13,6 +13,7 @@ import locale
@@ -88,9 +88,9 @@ index 22375e2d..8e96b915 100755
  
  gi.require_version("Gtk", "3.0")
  from gi.repository import Gtk, Gdk, GLib, Pango
-@@ -712,6 +713,25 @@ class KlipperScreen(Gtk.Window):
+@@ -729,6 +730,25 @@ class KlipperScreen(Gtk.Window):
              self.screensaver.reset_timeout()
-         logging.debug(f"Blanking timeout: {time} DPMS:{self.use_dpms}")
+         logging.debug(f"Blanking timeout: {time}")
  
 +    def set_timezone(self, timezone):
 +        logging.info("Setting timezone to %s" % timezone)

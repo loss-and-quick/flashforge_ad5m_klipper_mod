@@ -27,6 +27,6 @@ index 113587d4..22375e2d 100755
 +#                self.printer.configure_cameras(cameras['webcams'])
          if "spoolman" in self.server_info["components"]:
              self.printer.enable_spoolman()
- 
--- 
+
+--- 
 2.47.2

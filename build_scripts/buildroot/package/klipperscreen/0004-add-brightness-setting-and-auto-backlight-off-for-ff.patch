@@ -1,6 +1,6 @@
-From 2324b91210b76ec487ac448fa99b08418bca9431 Mon Sep 17 00:00:00 2001
+From 0c510461e9bacf2b29f3ebed2a1b34dc69e763cd Mon Sep 17 00:00:00 2001
 From: consp <none@yourbusiness.com>
-Date: Wed, 13 Mar 2024 20:32:18 +0100
+Date: Sun, 22 Mar 2026 13:47:59 +0300
 Subject: [PATCH] add brightness setting and auto-backlight-off for
  ffad5m_klipper_mod
 
@@ -12,21 +12,21 @@ Co-authored-by: xblax <xblax@incy.net>
  3 files changed, 30 insertions(+), 1 deletion(-)
 
 diff --git a/ks_includes/config.py b/ks_includes/config.py
-index c0dbe813..4e97b9c4 100644
+index 3c2fc8bc..a0ad35e5 100644
 --- a/ks_includes/config.py
 +++ b/ks_includes/config.py
-@@ -22,6 +22,10 @@ SCREEN_BLANKING_OPTIONS = [
-     14400,  # 4 Hours
- ]
+@@ -11,6 +11,10 @@ import zoneinfo
+ 
+ from io import StringIO
  
 +SCREEN_BRIGHTNESS_OPTIONS = [
 +    10, 20, 30, 40, 50, 60, 70, 80, 90, 100
 +]
 +
- klipperscreendir = pathlib.Path(__file__).parent.resolve().parent
- home = os.path.expanduser("~/")
- printer_data_config = os.path.join(home, "printer_data", "config")
-@@ -168,7 +172,7 @@ class KlipperScreenConfig:
+ SCREEN_BLANKING_OPTIONS = [
+     60,     # 1 Minute
+     120,    # 2 Minutes
+@@ -178,7 +182,7 @@ class KlipperScreenConfig:
                  )
                  strs = (
                      'default_printer', 'language', 'print_sort_dir', 'theme', 'screen_blanking_printing', 'font_size',
@@ -35,7 +35,7 @@ index c0dbe813..4e97b9c4 100644
                      "lock_password", "timezone"
                  )
                  numbers = (
-@@ -277,6 +281,10 @@ class KlipperScreenConfig:
+@@ -288,6 +292,10 @@ class KlipperScreenConfig:
                  "value": "3600", "callback": screen.set_screenblanking_printing_timeout, "options": [
                      {"name": _("Never"), "value": "off"}]
              }},
@@ -46,7 +46,7 @@ index c0dbe813..4e97b9c4 100644
              {"timezone": {
                  "section": "main", "name": _("Timezone"), "type": "dropdown",
                  "value": "UTC", "callback": screen.set_timezone, "options": []
-@@ -375,6 +383,14 @@ class KlipperScreenConfig:
+@@ -386,6 +394,14 @@ class KlipperScreenConfig:
                  "value": f"{num}"
              })
  
@@ -84,20 +84,20 @@ index 64ceb018..bbd26ded 100644
          self.screen.power_devices(None, self.config.get_main_config().get("screen_on_devices", ""), on=True)
          self.screen.lock_screen.relock()
 diff --git a/screen.py b/screen.py
-index 8e96b915..2275aa25 100755
+index 7dc5f95a..60b38d0e 100755
 --- a/screen.py
 +++ b/screen.py
-@@ -179,6 +179,7 @@ class KlipperScreen(Gtk.Window):
+@@ -178,6 +178,7 @@ class KlipperScreen(Gtk.Window):
              return
          self.base_panel.activate()
-         self.use_dpms = self._config.get_main_config().getboolean("use_dpms", fallback=True)
+         self.use_dpms = self._config.get_main_config().getboolean("use_dpms", fallback=(not self.wayland))
 +        self.set_screen_brightness(self._config.get_main_config().get('screen_brightness'))
          self.use_dpms &= functions.dpms_loaded
          self.set_dpms(self.use_dpms)
-         self.lock_screen = LockScreen(self)
-@@ -713,6 +714,14 @@ class KlipperScreen(Gtk.Window):
+         autolock = self._config.get_main_config().getint("autolock_timeout", fallback=0)
+@@ -730,6 +731,14 @@ class KlipperScreen(Gtk.Window):
              self.screensaver.reset_timeout()
-         logging.debug(f"Blanking timeout: {time} DPMS:{self.use_dpms}")
+         logging.debug(f"Blanking timeout: {time}")
  
 +    def set_screen_brightness(self, brightness, update=True):
 +        if not isinstance(brightness, int):
@@ -111,4 +111,5 @@ index 8e96b915..2275aa25 100755
          logging.info("Setting timezone to %s" % timezone)
          tzpath = "/usr/share/zoneinfo"
 -- 
-2.47.2
+2.53.0
+
