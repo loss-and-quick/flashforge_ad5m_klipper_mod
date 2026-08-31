@@ -9,8 +9,9 @@ Signed-off-by: minicx <minicx@disroot.org>
 ---
  klippy/extras/flashforge_tvoc.py | 129 ++++++++++++++++++++
  src/stm32/Kconfig                |   9 +-
+ src/stm32/Makefile               |   1 +
  src/stm32/flashforge_tvoc.c      | 203 +++++++++++++++++++++++++++++++
- 3 files changed, 340 insertions(+), 1 deletion(-)
+ 4 files changed, 341 insertions(+), 1 deletion(-)
  create mode 100644 klippy/extras/flashforge_tvoc.py
  create mode 100644 src/stm32/flashforge_tvoc.c
 
@@ -23,7 +24,7 @@ index 000000000..37873165a
 +import logging
 +import mcu
 +
-+MCU_TVOC_RESPONSE = "flashforge_tvoc_response"
++MCU_TVOC_RESPONSE = "flashforge_tvoc_response co2=%u tvoc=%u hcho=%u status=%s"
 +
 +REPORT_TIME = 0.5
 +
@@ -56,7 +57,7 @@ index 000000000..37873165a
 +        self.gcode = self.printer.lookup_object('gcode')
 +        self.name = config.get_name().split()[-1]
 +        self.mcu = mcu.get_printer_mcu(self.printer, config.get('mcu'))
-+        self.mcu.register_response(self._handle_tvoc_response, MCU_TVOC_RESPONSE)
++        self.mcu.register_serial_response(self._handle_tvoc_response, MCU_TVOC_RESPONSE)
 +        self.logger = logging.getLogger('klippy')
 +        
 +        self.last_tvoc_value = 0
@@ -379,6 +380,16 @@ index 000000000..0dd5c704b
 +}
 +DECL_SHUTDOWN(flashforge_tvoc_shutdown);
 \ No newline at end of file
+diff --git a/src/stm32/Makefile b/src/stm32/Makefile
+--- a/src/stm32/Makefile
++++ b/src/stm32/Makefile
+@@ -91,5 +91,6 @@
+ src-$(CONFIG_HAVE_GPIO_SDIO) += stm32/sdio.c
+ src-$(CONFIG_FLASHFORGE_LOADCELL) += stm32/flashforge_load_cell.c
++src-$(CONFIG_FLASHFORGE_TVOC) += stm32/flashforge_tvoc.c
+ 
+ # Binary output file rules
+ target-y += $(OUT)klipper.bin
 -- 
 2.51.0
 
