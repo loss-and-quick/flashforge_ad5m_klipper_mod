@@ -4,8 +4,8 @@
 #
 ################################################################################
 
-KATAPULT_VERSION = 399e50e1210062a297dfb93c836731de150cbdc6
-KATAPULT_SITE = https://github.com/Arksine/katapult.git
+KATAPULT_VERSION = f1b31e44a8b0a76ce09132f5448bf75fa0226bdb
+KATAPULT_SITE = https://github.com/loss-and-quick/katapult.git
 KATAPULT_SITE_METHOD = git
 
 KATAPULT_LICENSE = GPL-3.0
