@@ -134,10 +134,10 @@ PRETTY_NAME="Klipper Mod $KLIPPER_MOD_VERSION"
 EOF
 
 log_info "Installing custom Klipper Python extensions into /opt/klipper/klippy/extras/."
-cp "$GIT_ROOT/build_scripts/components/klipper_extensions/"*.py "$TARGET_ROOT/opt/klipper/klippy/extras/" || true
+cp "$GIT_ROOT/build_scripts/components/klipper_extensions/"* "$TARGET_ROOT/opt/klipper/klippy/extras/" || true
 
 log_info "Installing custom Moonraker Python extensions into /opt/moonraker/moonraker/components/."
-cp "$GIT_ROOT/build_scripts/components/moonraker_extensions/"*.py "$TARGET_ROOT/opt/moonraker/moonraker/components/" || true
+cp "$GIT_ROOT/build_scripts/components/moonraker_extensions/"* "$TARGET_ROOT/opt/moonraker/moonraker/components/" || true
 
 log_info "Setting Moonraker API communication port to 7125 within Mainsail's configuration (/opt/mainsail/config.json). This ensures Mainsail can properly connect to Moonraker."
 sed -i 's\"port": null\"port": 7125\g' "$TARGET_ROOT/opt/mainsail/config.json"
