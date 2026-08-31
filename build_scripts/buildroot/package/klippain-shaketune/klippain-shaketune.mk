@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-KLIPPAIN_SHAKETUNE_VERSION = 786abbbf0be575cfaa137614f618caadceff02f5
+KLIPPAIN_SHAKETUNE_VERSION = 354ee4be6db218715239f7b9411c2c37fdea23dd
 KLIPPAIN_SHAKETUNE_SITE = https://github.com/Frix-x/klippain-shaketune.git
 KLIPPAIN_SHAKETUNE_SITE_METHOD = git
 KLIPPAIN_SHAKETUNE_LICENSE = GPL-3.0+
