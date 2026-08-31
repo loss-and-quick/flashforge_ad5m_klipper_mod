@@ -1,3 +1,8 @@
+.vscode/
 build_output/*
 device_files/images/fb
 *.md.backup
+
+# Local printer configuration, kept out of the tree because it may hold secrets
+my_*.cfg
+my_*.conf
