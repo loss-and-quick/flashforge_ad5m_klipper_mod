@@ -1,0 +1,127 @@
+From 95d69148ccd1192b17e8046faf92c365ad030a78 Mon Sep 17 00:00:00 2001
+From: minicx <minicx@disroot.org>
+Date: Tue, 1 Sep 2026 00:00:39 +0300
+Subject: [PATCH] garbage_collection: Defer a collection that would outlast
+ queued motion
+
+A generation sweep blocks the reactor, and on a slow host a generation 2
+sweep takes long enough to drain the step queue and end the print with a
+"Timer too close". The sweeps get slower as a print goes on, so a print
+that survives the first hour still dies later.
+
+Measure how long each generation actually takes and compare it against
+the motion already generated ahead of the mcu, exposed by the new
+motion_queuing.get_step_gen_lead_time(). Pick the highest generation that
+fits, and skip the sweep entirely when even generation 0 does not.
+
+Signed-off-by: minicx <minicx@disroot.org>
+---
+ klippy/extras/garbage_collection.py | 46 +++++++++++++++++++++++++++--
+ klippy/extras/motion_queuing.py     | 11 +++++++
+ 2 files changed, 55 insertions(+), 2 deletions(-)
+
+diff --git a/klippy/extras/garbage_collection.py b/klippy/extras/garbage_collection.py
+index f97400c4e..9c8a3094d 100644
+--- a/klippy/extras/garbage_collection.py
++++ b/klippy/extras/garbage_collection.py
+@@ -10,6 +10,14 @@ from types import FunctionType, MethodType
+ 
+ THRESHOLD = 0.05
+ 
++# A generation sweep blocks the reactor, so it must finish before the step
++# queue the mcu is working through runs out.  Costs start pessimistic and are
++# replaced by measurements, so an unmeasured generation 2 sweep is never
++# attempted while the toolhead is moving.
++GC_SAFETY_FACTOR = 1.5
++GC_TIME_MARGIN = 0.050
++GC_INITIAL_COST = [0.005, 0.050, 0.500]
++
+ def get_function_owner(cb):
+     if type(cb) in (FunctionType, MethodType):
+         code = cb.__code__
+@@ -30,7 +38,10 @@ class GarbageCollection:
+         self.printer = printer = config.get_printer()
+         # Perform gc on reactor idle
+         self._last_gc_times = [0., 0., 0.]
+-        reactor = printer.get_reactor()
++        self._gc_costs = list(GC_INITIAL_COST)
++        self._skipped_gc = [0, 0, 0]
++        self.motion_queuing = None
++        self.reactor = reactor = printer.get_reactor()
+         reactor.set_idle_notifier(self._handle_idle)
+         printer.register_event_handler("klippy:analyze_shutdown",
+                                        self._handle_analyze_shutdown)
+@@ -45,7 +56,22 @@ class GarbageCollection:
+                                        self._handle_ready_latency)
+ 
+     def _handle_analyze_shutdown(self, msg, details):
+-        logging.info("Reactor garbage collection: %s", self._last_gc_times)
++        logging.info("Reactor garbage collection: %s (costs %s, deferred %s)",
++                     self._last_gc_times, self._gc_costs, self._skipped_gc)
++
++    def _get_gc_budget(self, eventtime):
++        # Seconds available before a blocking collection would starve the
++        # move queue.  None means nothing is moving and any sweep is safe.
++        if self.motion_queuing is None:
++            self.motion_queuing = self.printer.lookup_object('motion_queuing',
++                                                             None)
++            if self.motion_queuing is None:
++                return None
++        return self.motion_queuing.get_step_gen_lead_time(eventtime)
++
++    def _fits_in_budget(self, gc_level, budget):
++        cost = self._gc_costs[gc_level] * GC_SAFETY_FACTOR + GC_TIME_MARGIN
++        return cost <= budget
+ 
+     def _handle_idle(self, eventtime, start_busy_time):
+         gi = gc.get_count()
+@@ -57,8 +83,24 @@ class GarbageCollection:
+             gc_level = 1
+             if gi[2] >= 10:
+                 gc_level = 2
++        # A sweep that outlasts the queued motion ends the print with a
++        # "Timer too close", and the older generations only get slower as a
++        # print goes on.  Drop to a generation that fits, or wait for a
++        # moment when the toolhead is not moving.
++        budget = self._get_gc_budget(eventtime)
++        if budget is not None:
++            while gc_level and not self._fits_in_budget(gc_level, budget):
++                self._skipped_gc[gc_level] += 1
++                gc_level -= 1
++            if not self._fits_in_budget(gc_level, budget):
++                self._skipped_gc[gc_level] += 1
++                return False
+         self._last_gc_times[gc_level] = eventtime
++        start_time = self.reactor.monotonic()
+         gc.collect(gc_level)
++        cost = self.reactor.monotonic() - start_time
++        if cost > self._gc_costs[gc_level]:
++            self._gc_costs[gc_level] = cost
+         return True
+ 
+     def _handle_ready(self):
+diff --git a/klippy/extras/motion_queuing.py b/klippy/extras/motion_queuing.py
+index 07a6d63ed..9862a81e4 100644
+--- a/klippy/extras/motion_queuing.py
++++ b/klippy/extras/motion_queuing.py
+@@ -288,6 +288,17 @@ class PrinterMotionQueuing:
+         self.reactor.update_timer(self.flush_timer, self.reactor.NOW)
+         self._advance_flush_time(flush_time + self.kin_flush_delay)
+         self.drip_start_times.remove(start_time)
++    def get_step_gen_lead_time(self, eventtime):
++        # Seconds of stepper motion already generated beyond the current mcu
++        # time.  A caller that is about to block the reactor can use this to
++        # check that it will finish before the move queue runs dry.  Returns
++        # None when nothing is moving and any delay is harmless.
++        est_print_time = self.mcu.estimated_print_time(eventtime)
++        lead_time = self.last_step_gen_time - est_print_time
++        if (lead_time <= 0.
++            and self.need_step_gen_time <= self.last_step_gen_time):
++            return None
++        return max(0., lead_time)
+     def check_drip_timing(self):
+         if not self.drip_start_times:
+             return None
+-- 
+2.54.0
+
