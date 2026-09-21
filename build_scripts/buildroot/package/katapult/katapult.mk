@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-KATAPULT_VERSION = f1b31e44a8b0a76ce09132f5448bf75fa0226bdb
+KATAPULT_VERSION = 0555704cdd670172aadcff49b39b8e281cdfd3ee
 KATAPULT_SITE = https://github.com/loss-and-quick/katapult.git
 KATAPULT_SITE_METHOD = git
 
