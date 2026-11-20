@@ -4,13 +4,12 @@
 mkdir -p /dev/shm
 mkdir -p /run/lock/subsys
 
-# load kernel modules for wifi
-insmod /lib/modules/cbc.ko
-insmod /lib/modules/md4.ko
-insmod /lib/modules/sha512_generic.ko
-insmod /mnt/orig_root/lib/modules/8821cu.ko
-# load kernel modules for touch
-insmod /lib/modules/uinput.ko 2> /dev/null
+# load kernel modules if built as modular
+modprobe cbc 2>/dev/null || true
+modprobe md4 2>/dev/null || true
+modprobe sha512_generic 2>/dev/null || true
+modprobe 8821cu 2>/dev/null || true
+modprobe uinput 2>/dev/null || true
 
 # mount swap
 sysctl vm.swappiness=15
