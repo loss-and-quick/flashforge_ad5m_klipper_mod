@@ -1,0 +1,85 @@
+From: =?UTF-8?q?Kuba=20Szczodrzy=C5=84ski?= <kuba@szczodrzynski.pl>
+Date: Sun, 16 Nov 2025 14:48:21 +0100
+Subject: [PATCH v3 2/6] drm/sun4i: Support LVDS using MIPI DSI combo D-PHY
+
+On Allwinner chips with a combo D-PHY, the TCON LCD0 should fetch it
+from device tree in order to enable LVDS. Since the PHY also needs to
+be powered off to disable LVDS, add a function to the quirks.
+
+Signed-off-by: Kuba Szczodrzyński <kuba@szczodrzynski.pl>
+---
+ drivers/gpu/drm/sun4i/sun4i_tcon.c | 12 ++++++++++++
+ drivers/gpu/drm/sun4i/sun4i_tcon.h |  6 ++++++
+ 2 files changed, 18 insertions(+)
+
+diff --git a/drivers/gpu/drm/sun4i/sun4i_tcon.c b/drivers/gpu/drm/sun4i/sun4i_tcon.c
+index 960e83c82..247400785 100644
+--- a/drivers/gpu/drm/sun4i/sun4i_tcon.c
++++ b/drivers/gpu/drm/sun4i/sun4i_tcon.c
+@@ -12,6 +12,7 @@
+ #include <linux/module.h>
+ #include <linux/of.h>
+ #include <linux/of_platform.h>
++#include <linux/phy/phy.h>
+ #include <linux/platform_device.h>
+ #include <linux/regmap.h>
+ #include <linux/reset.h>
+@@ -183,6 +184,8 @@ static void sun4i_tcon_lvds_set_status(struct sun4i_tcon *tcon,
+ 	} else {
+ 		regmap_update_bits(tcon->regs, SUN4I_TCON0_LVDS_IF_REG,
+ 				   SUN4I_TCON0_LVDS_IF_EN, 0);
++		if (tcon->quirks->teardown_lvds_phy)
++			tcon->quirks->teardown_lvds_phy(tcon, encoder);
+ 	}
+ }
+ 
+@@ -1245,6 +1248,15 @@ static int sun4i_tcon_bind(struct device *dev, struct device *master,
+ 		goto err_free_dclk;
+ 	}
+ 
++	if (tcon->quirks->has_combo_dphy) {
++		tcon->dphy = devm_phy_get(dev, "combo-phy");
++		if (IS_ERR(tcon->dphy)) {
++			dev_err(dev, "Couldn't get the combo D-PHY\n");
++			ret = PTR_ERR(tcon->dphy);
++			goto err_free_dclk;
++		}
++	}
++
+ 	if (tcon->quirks->has_channel_0) {
+ 		/*
+ 		 * If we have an LVDS panel connected to the TCON, we should
+diff --git a/drivers/gpu/drm/sun4i/sun4i_tcon.h b/drivers/gpu/drm/sun4i/sun4i_tcon.h
+index fa23aa23f..82b65a2e6 100644
+--- a/drivers/gpu/drm/sun4i/sun4i_tcon.h
++++ b/drivers/gpu/drm/sun4i/sun4i_tcon.h
+@@ -239,6 +239,7 @@ struct sun4i_tcon_quirks {
+ 	bool	has_channel_0;	/* a83t does not have channel 0 on second TCON */
+ 	bool	has_channel_1;	/* a33 does not have channel 1 */
+ 	bool	has_lvds_alt;	/* Does the LVDS clock have a parent other than the TCON clock? */
++	bool	has_combo_dphy; /* Is the D-PHY used for LVDS output? */
+ 	bool	needs_de_be_mux; /* sun6i needs mux to select backend */
+ 	bool    needs_edp_reset; /* a80 edp reset needed for tcon0 access */
+ 	bool	supports_lvds;   /* Does the TCON support an LVDS output? */
+@@ -250,6 +251,8 @@ struct sun4i_tcon_quirks {
+ 	/* handler for LVDS setup routine */
+ 	void	(*setup_lvds_phy)(struct sun4i_tcon *tcon,
+ 				  const struct drm_encoder *encoder);
++	void	(*teardown_lvds_phy)(struct sun4i_tcon *tcon,
++				     const struct drm_encoder *encoder);
+ };
+ 
+ struct sun4i_tcon {
+@@ -282,6 +285,9 @@ struct sun4i_tcon {
+ 	/* Associated crtc */
+ 	struct sun4i_crtc		*crtc;
+ 
++	/* Associated D-PHY */
++	struct phy			*dphy;
++
+ 	int				id;
+ 
+ 	/* TCON list management */
+-- 
+2.25.1
+

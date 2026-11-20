@@ -1,0 +1,32 @@
+From 858490aaff0e98d419f6ea7ef03d5d0386c53d4f Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Kuba=20Szczodrzy=C5=84ski?= <kuba@szczodrzynski.pl>
+Date: Fri, 13 Nov 2026 04:02:29 +0300
+Subject: [PATCH] riscv: dts: allwinner: d1s-t113: Add LVDS0 pins
+
+---
+ arch/riscv/boot/dts/allwinner/sunxi-d1s-t113.dtsi | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/arch/riscv/boot/dts/allwinner/sunxi-d1s-t113.dtsi b/arch/riscv/boot/dts/allwinner/sunxi-d1s-t113.dtsi
+index 0c1d07ac5..0d9d188f8 100644
+--- a/arch/riscv/boot/dts/allwinner/sunxi-d1s-t113.dtsi
++++ b/arch/riscv/boot/dts/allwinner/sunxi-d1s-t113.dtsi
+@@ -78,6 +78,15 @@
+ 				function = "dsi";
+ 			};
+ 
++			/omit-if-no-ref/
++			lcd_lvds0_pins: lcd-lvds0-pins {
++				pins = "PD0", "PD1", "PD2", "PD3", "PD4", "PD5",
++				       "PD6", "PD7", "PD8", "PD9";
++				function = "lvds0";
++				drive-strength = <30>;
++				bias-disable;
++			};
++
+ 			/omit-if-no-ref/
+ 			lcd_rgb666_pins: lcd-rgb666-pins {
+ 				pins = "PD0", "PD1", "PD2", "PD3", "PD4", "PD5",
+-- 
+2.56.0
+

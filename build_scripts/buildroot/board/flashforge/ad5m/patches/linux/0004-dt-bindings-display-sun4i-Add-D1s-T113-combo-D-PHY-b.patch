@@ -1,0 +1,35 @@
+From: =?UTF-8?q?Kuba=20Szczodrzy=C5=84ski?= <kuba@szczodrzynski.pl>
+Date: Sun, 16 Nov 2025 14:49:43 +0100
+Subject: [PATCH v3 4/6] dt-bindings: display: sun4i: Add D1s/T113 combo D-PHY
+ bindings
+
+The sun4i TCON needs a reference to the D-PHY in order to support LVDS
+on Allwinner D1s/T113.
+
+Add phys and phy-names to DT bindings.
+
+Signed-off-by: Kuba Szczodrzyński <kuba@szczodrzynski.pl>
+---
+ .../bindings/display/allwinner,sun4i-a10-tcon.yaml          | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/display/allwinner,sun4i-a10-tcon.yaml b/Documentation/devicetree/bindings/display/allwinner,sun4i-a10-tcon.yaml
+index 724d93b91..52589341f 100644
+--- a/Documentation/devicetree/bindings/display/allwinner,sun4i-a10-tcon.yaml
++++ b/Documentation/devicetree/bindings/display/allwinner,sun4i-a10-tcon.yaml
+@@ -115,6 +115,12 @@ properties:
+           - const: edp
+           - const: lvds
+ 
++  phys:
++    maxItems: 1
++
++  phy-names:
++    const: combo-phy
++
+   ports:
+     $ref: /schemas/graph.yaml#/properties/ports
+ 
+-- 
+2.25.1
+

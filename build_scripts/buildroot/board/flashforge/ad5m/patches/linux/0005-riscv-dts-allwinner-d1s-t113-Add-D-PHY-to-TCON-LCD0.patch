@@ -1,0 +1,31 @@
+From: =?UTF-8?q?Kuba=20Szczodrzy=C5=84ski?= <kuba@szczodrzynski.pl>
+Date: Sun, 16 Nov 2025 14:49:57 +0100
+Subject: [PATCH v3 5/6] riscv: dts: allwinner: d1s-t113: Add D-PHY to TCON
+ LCD0
+
+The sun4i TCON needs a reference to the D-PHY in order to support LVDS
+on Allwinner D1s/T113.
+
+Add phys and phy-names to sunxi-d1s-t113 common device tree.
+
+Signed-off-by: Kuba Szczodrzyński <kuba@szczodrzynski.pl>
+---
+ arch/riscv/boot/dts/allwinner/sunxi-d1s-t113.dtsi | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/arch/riscv/boot/dts/allwinner/sunxi-d1s-t113.dtsi b/arch/riscv/boot/dts/allwinner/sunxi-d1s-t113.dtsi
+index 63e252b44..78aa61607 100644
+--- a/arch/riscv/boot/dts/allwinner/sunxi-d1s-t113.dtsi
++++ b/arch/riscv/boot/dts/allwinner/sunxi-d1s-t113.dtsi
+@@ -876,6 +876,8 @@ tcon_lcd0: lcd-controller@5461000 {
+ 			resets = <&ccu RST_BUS_TCON_LCD0>,
+ 				 <&ccu RST_BUS_LVDS0>;
+ 			reset-names = "lcd", "lvds";
++			phys = <&dphy>;
++			phy-names = "combo-phy";
+ 			#clock-cells = <0>;
+ 
+ 			ports {
+-- 
+2.25.1
+
