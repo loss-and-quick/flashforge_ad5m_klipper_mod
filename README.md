@@ -1,62 +1,63 @@
-
 [![Mainsail](docs/images/mainsail_01_thumb.jpg)](docs/images/mainsail_01.jpg)
 [![Fluidd](docs/images/fluidd_01_thumb.png)](docs/images/fluidd_01.png)
 [![NoScreen](docs/images/no_screen_01_thumb.jpg)](docs/images/no_screen_01.jpg)
 [![KlipperScreen](docs/images/klipper_screen_01_thumb.jpg)](docs/images/klipper_screen_01.jpg)
 
-# Klipper Mod for Flashforge Adventurer 5M (Pro) for STM MCU's mod
+# Standalone Klipper Mod for FlashForge Adventurer 5M (Pro)
 
-This is an *unofficial* mod to run Moonraker, custom Klipper, Mainsail & Fluidd on the Flashforge AD5M (Pro) 3D printers and unlock the full power of open source software.
+An open-source, **fully standalone** operating system for the FlashForge Adventurer 5M and Adventurer 5M Pro 3D printers. 
 
-Klipper Mod for the AD5M is designed to be fully removable and not break any functions of the stock software.
+This firmware transitions the printer away from vendor-restricted environments and legacy chroot setups into a clean, modern Linux system powered by **mainline Linux 6.6 LTS**, **mainline U-Boot 2024.10 with native SPL**, and **Buildroot**, unlocking standard upstream Klipper, Moonraker, Mainsail, Fluidd, and KlipperScreen.
 
 > [!CAUTION]
-> *If you want to install this mod to your AD5M (Pro) then be aware, that you risk to loose your warranty or damage the printer. Proceed at your own risk if you want to try this mod!*
+> *Installing custom firmware carries risks to your warranty and printer hardware. Proceed at your own risk.*
 
-*This mod is currently in beta stage.* Many features are implemented already but they need to be tested thoroughly and polished a bit by early adopters.
+---
 
-## Feature Overview
+## Key Highlights & Architecture
 
-- [Klipper](https://www.klipper3d.org/) 0.13 ‒ with improved configuration and default macros, along with support for load cell.
-- [Moonraker](https://github.com/Arksine/moonraker) on port 7125
-- Switchable Web frontends ([Fluidd](https://docs.fluidd.xyz/) or [Mainsail](https://docs.mainsail.xyz/)) on port 4000
-- [KlipperScreen](https://klipperscreen.readthedocs.io/en/latest/) ‒ separate  build variant
-- [Guppyscreen](https://github.com/ballaswag/guppyscreen) ‒ separate preview build variant
-- Camera streaming via [ustreamer](https://github.com/pikvm/ustreamer) on port 8080
-- [Moonraker-timelapse](https://github.com/mainsail-crew/moonraker-timelapse) support
-- Network access: Ethernet LAN and WiFi via [iwd](https://iwd.wiki.kernel.org/)
-- Customized Linux environment based on [Buildroot](https://buildroot.org/)
-- SSH root access. Login: `root`, Password: `klipper`
-- [Audio](https://pypi.org/project/ff-adm5-audio/) via buzzer (can play simple Midis)
-- [LCD backlight](https://pypi.org/project/ff-ad5m-backlight/) control 
-- Automatic USB flash drive mounting
+- **Mainline Linux 6.6 LTS Kernel**: Upstream kernel with clean, dedicated device trees (`sun8i-t113-flashforge-ad5m.dtsi`, `sun8i-t113s3-flashforge-ad5m.dts`, `sun8i-t113s4-flashforge-ad5m.dts`).
+- **Mainline U-Boot 2024.10 with Native SPL**: Direct hardware initialization without proprietary vendor bootloaders.
+- **Dual SoC Support (T113-S3 & T113-S4)**: Automatic detection of Allwinner T113-S3 (128 MB DDR3) and T113-S4 (256 MB DDR3) at boot time via SID eFuse (`0x7200`), unlocking the full 256 MB DRAM on newer mainboard revisions.
+- **eMMC Overclocking Option**: High-Speed DDR52 / HS200 mode up to 150 MHz delivering up to ~60 MB/s storage throughput (vs 12.5 MB/s stock). Configurable at build time via `EMMC_OVERCLOCK=1`.
+- **Zero Binary Blobs**: All drivers (including Realtek RTL8821CU Wi-Fi, crypto engines, uinput) are built from open-source code.
+- **Fully Integrated Hardware**:
+  - **4.3" 800×480 LVDS Display**: Driven via the Allwinner T113 combo D-PHY in LVDS mode (`sun4i-drm`).
+  - **Resistive Touchscreen**: 4-wire controller (`rtp@2009c00`, `allwinner,sun8i-ts`) driven by mainline `sun4i-ts` with calibrated tslib matrix.
+  - **Networking**: 100M Ethernet (DWMAC + IP101GR PHY) and 802.11ac Wi-Fi (`rtl8821cu` via internal USB hub) managed by `iwd`.
+  - **Serial MCUs**: Extruder MCU on UART1 (`PG6`/`PG7` @ 230,400) and Mainboard MCU on UART5 (`PG4`/`PG5` @ 230,400).
+  - **Backlight & Buzzer**: PWM channel 7 (`PD22`) for display brightness, PWM channel 3 (`PB0`) for tone/melody generation.
+- **Dual Delivery Strategy**:
+  - **USB Flash Installer Package** (`Adventurer5M-KlipperMod*.tgz`): Flashes the standalone kernel and root filesystem directly to eMMC partitions p1 and p6 in-place via the stock update mechanism (no opening the printer or soldering required).
+  - **Raw Disk Image** (`ad5m-system.img`): MBR disk image containing SPL, U-Boot, boot, and rootfs partitions for direct flashing or recovery.
 
-All features of the mod run directly on the printer built-in system (Allwinner T113-S3 with 128MB RAM), but need to swap stock mcu to stm32f103!
+---
 
-## Getting Started
+## Included Software & Features
 
-Download test latest [Release Build](https://github.com/xblax/flashforge_ad5m_klipper_mod/releases) and read through the documentation for [Installation](docs/INSTALL.md) and [Slicing](docs/SLICING.md). Also make yourself familiar with the [Uninstall](docs/UNINSTALL.md) methods, to get rid of the mod if you don't like it.
+- **[Klipper](https://www.klipper3d.org/)** 0.13 — Custom configurations, improved default macros, and load-cell probing support.
+- **[Moonraker](https://github.com/Arksine/moonraker)** API server (port `7125`).
+- **Web Interfaces**: [Fluidd](https://docs.fluidd.xyz/) and [Mainsail](https://docs.mainsail.xyz/) on port `4000`.
+- **Display Variants**:
+  - **`lite`** — Headless / Web-only variant for maximum free RAM.
+  - **`klipperscreen`** — Full [KlipperScreen](docs/KLIPPER_SCREEN.md) touch interface on the 4.3" LCD.
+  - **`guppyscreen`** — Lightweight [GuppyScreen](docs/GUPPY_SCREEN.md) touch UI.
+- **Camera Streaming**: High-performance streaming via [ustreamer](https://github.com/pikvm/ustreamer) on port `8080`.
+- **[Moonraker-Timelapse](https://github.com/mainsail-crew/moonraker-timelapse)** for automated print videos.
+- **SSH Root Access**: Port `22` (User: `root`, Password: `klipper`).
+- **Audio & Melodies**: Buzzer playback via `python-ff-ad5m-audio`.
+- **Automatic USB Drive Mounting** for print jobs and config overlays.
 
-The Klipper Mod for AD5M (Pro) is currently provided in three variants: 
-- Default headless variant without an on-screen GUI control application
-- Beta Klipper Screen variant with fully-fledged [KlipperScreen](docs/KLIPPER_SCREEN.md) installation. If you encounter any issues that could be caused by resource exhaustion (mostly system RAM), please check if the issue also occurs with the default variant.
-- Alpha Guppy Screen variant for a more ligthweight UI on the limited hardwareof the 5m/5mpro. If you encounter any issues that could be caused by resource exhaustion (mostly system RAM), please check if the issue also occurs with the default variant.
+---
 
-You are welcome to participate int the [GitHub Discussions](https://github.com/xblax/flashforge_ad5m_klipper_mod/discussions) or open a new [Issue](https://github.com/xblax/flashforge_ad5m_klipper_mod/issues) if you find any bugs.
+## Quick Start & Documentation
 
-## Documentation
-
-Due to the beta stage of Klipper Mod the documentation is not fully-completed. The documentation is split into several topics:
-
-- [Install](docs/INSTALL.md): How to install Klipper Mod
-- [Uninstall](docs/UNINSTALL.md): Uninstall Klipper Mod
-- [Slicing](docs/SLICING.md): Configure your Slicer for Klipper
-- [Wifi](docs/WIFI.md): Methods to Configure WiFi
-- [Linux Environment](docs/LINUX.md): Klipper Mod Linux environment
-- [Klipper Screen](docs/KLIPPER_SCREEN.md)
-- [Guppy Screen](docs/GUPPY_SCREEN.md)
-- [Camera](docs/CAMERA.md)
-- [USB](docs/USB.md)
-- [LCD](docs/LCD.md)
-- [Buzzer](docs/BUZZER.md)
-- [Build Instructions](docs/BUILDING.md)
+1. **[Installation Guide](docs/INSTALL.md)**: Flashing via USB drive or raw disk image.
+2. **[Building from Source](docs/BUILDING.md)**: How to compile the SDK, kernel, U-Boot, and system variants.
+3. **[Linux System Architecture](docs/LINUX.md)**: In-depth technical breakdown of kernel, bootloader, storage, and drivers.
+4. **[LCD & Touchscreen](docs/LCD.md)**: Display interface, touchscreen calibration, and backlight control.
+5. **[Wi-Fi Configuration](docs/WIFI.md)**: Setting up wireless networking with `iwd`.
+6. **[Slicing Guide](docs/SLICING.md)**: Slicer profiles and start/end G-Code setup.
+7. **[Buzzer & Audio](docs/BUZZER.md)**: Playing sounds and alerts.
+8. **[Camera Setup](docs/CAMERA.md)**: Connecting and configuring USB webcams.
+9. **[Uninstallation](docs/UNINSTALL.md)**: Reverting back to stock firmware.
