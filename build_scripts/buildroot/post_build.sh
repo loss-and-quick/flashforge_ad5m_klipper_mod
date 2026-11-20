@@ -138,12 +138,6 @@ cp "$GIT_ROOT/build_scripts/components/moonraker_extensions/"* "$TARGET_ROOT/opt
 
 log_info "Setting Moonraker API communication port to 7125 within Mainsail's configuration (/opt/mainsail/config.json). This ensures Mainsail can properly connect to Moonraker."
 sed -i 's\"port": null\"port": 7125\g' "$TARGET_ROOT/opt/mainsail/config.json"
-# Mainsail reads the Moonraker port from defaultMoonrakerPort; the plain "port"
-# key is no longer honoured, which left the UI trying to reach Moonraker on the
-# port it is served from.
-if ! grep -q 'defaultMoonrakerPort' "$TARGET_ROOT/opt/mainsail/config.json"; then
-    sed -i 's\"path": null\"defaultMoonrakerPort": 7125,\n    "path": null\g' "$TARGET_ROOT/opt/mainsail/config.json"
-fi
 
 log_info "Disabling the Mainsail service by default. Mainsail will not start automatically on boot."
 chmod -x "$TARGET_ROOT/etc/init.d/S70mainsail"

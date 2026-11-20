@@ -1,38 +1,32 @@
 #!/bin/sh
 #
-# Starts busybox httpd for mainsail.
+# Selects the frontend that nginx serves. The executable bit of this script is
+# the selection state: exactly one of S70fluidd/S70mainsail may be executable.
 #
 
+FRONTEND_LINK=/var/www/frontend
 WEBROOT=/opt/mainsail
-PID_FILE=/run/httpd_mainsail.pid
 
-start() {
-    # start busybox httpd
-    start-stop-daemon -S -b -m -p $PID_FILE --exec httpd -- -p 4000 -f -h $WEBROOT
-}
-
-stop() {
-    start-stop-daemon -K -p $PID_FILE
-}
-restart() {
-    stop
-    sleep 1
-    start
+select_frontend() {
+    mkdir -p /var/www
+    ln -sfn "$WEBROOT" "$FRONTEND_LINK"
+    if [ -x /etc/init.d/S70nginx ]; then
+        start-stop-daemon -K -q -p /run/nginx.pid 2>/dev/null
+        sleep 1
+        /etc/init.d/S70nginx start >/dev/null 2>&1
+    fi
 }
 
 case "$1" in
-  start)
-        start
+    start|restart|reload)
+        select_frontend
         ;;
-  stop)
-        stop
+    stop)
         ;;
-  restart|reload)
-        restart
-        ;;
-  *)
+    *)
         echo "Usage: $0 {start|stop|restart}"
         exit 1
+        ;;
 esac
 
-exit $?
+exit 0
