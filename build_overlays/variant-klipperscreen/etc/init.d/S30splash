@@ -1,0 +1,57 @@
+#!/bin/sh
+#
+# Paint the stock FlashForge logo as soon as the display driver has
+# registered fb0, then hand the framebuffer over to Xorg.
+#
+# The vendor U-Boot shows bootlogo.bmp from the boot partition; mainline
+# U-Boot cannot drive this display, so the same artwork ships pre-converted.
+# Without this the panel stays black from the moment the LCD driver binds
+# until Xorg starts.
+#
+
+FB=/dev/fb0
+SPLASH=/usr/share/klipper_mod/fb/flashforge_logo.img.xz
+FALLBACK=/usr/share/klipper_mod/fb/mod_start.img.xz
+
+start() {
+    # The kernel frame buffer console would keep a blinking cursor on top of
+    # the UI, so detach it from the display.
+    for vtcon in /sys/class/vtconsole/vtcon*; do
+        [ -e "$vtcon/bind" ] || continue
+        grep -q "frame buffer device" "$vtcon/name" 2>/dev/null || continue
+        echo 0 > "$vtcon/bind" 2>/dev/null
+    done
+    [ -e /sys/class/graphics/fbcon/cursor_blink ] && \
+        echo 0 > /sys/class/graphics/fbcon/cursor_blink 2>/dev/null
+
+    [ -e "$FB" ] || return 0
+    [ -f "$SPLASH" ] || SPLASH="$FALLBACK"
+    [ -f "$SPLASH" ] || return 0
+
+    size=$(cat /sys/class/graphics/fb0/virtual_size 2>/dev/null)
+    bpp=$(cat /sys/class/graphics/fb0/bits_per_pixel 2>/dev/null)
+    [ -n "$size" ] && [ -n "$bpp" ] || return 0
+
+    width=${size%,*}
+    height=${size#*,}
+    bytes=$((width * height * bpp / 8))
+
+    printf "Showing boot logo: "
+    if xzcat "$SPLASH" 2>/dev/null | head -c "$bytes" > "$FB"; then
+        echo "OK"
+    else
+        echo "FAIL"
+    fi
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    *)
+        echo "Usage: $0 {start}"
+        exit 1
+        ;;
+esac
+
+exit 0
