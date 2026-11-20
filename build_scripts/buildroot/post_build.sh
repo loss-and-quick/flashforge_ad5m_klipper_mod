@@ -136,13 +136,10 @@ cp "$GIT_ROOT/build_scripts/components/klipper_extensions/"* "$TARGET_ROOT/opt/k
 log_info "Installing custom Moonraker Python extensions into /opt/moonraker/moonraker/components/."
 cp "$GIT_ROOT/build_scripts/components/moonraker_extensions/"* "$TARGET_ROOT/opt/moonraker/moonraker/components/" || true
 
-log_info "Setting Moonraker API communication port to 7125 within Mainsail's configuration (/opt/mainsail/config.json). This ensures Mainsail can properly connect to Moonraker."
-sed -i 's\"port": null\"port": 7125\g' "$TARGET_ROOT/opt/mainsail/config.json"
-
-log_info "Disabling the Mainsail service by default. Mainsail will not start automatically on boot."
+log_info "Selecting Fluidd as the frontend served by nginx on port 4000."
 chmod -x "$TARGET_ROOT/etc/init.d/S70mainsail"
 chmod +x "$TARGET_ROOT/etc/init.d/S70fluidd"
-log_info "Mainsail service successfully disabled by default."
+log_info "Mainsail stays installed, the SWITCH_FRONTEND macro switches to it."
 
 log_info "Initiating the copying process for essential printer configuration files."
 
@@ -247,6 +244,14 @@ for overlay in "$BUILD_OVERLAYS"/plugin-*; do
         fi
     done
 done
+
+# The nginx package starts nginx from port 80 with its own configuration in
+# S50nginx. The frontend and the Moonraker proxy run on port 4000 from
+# S70nginx, which has to start after the frontend selection.
+if [ -f "$TARGET_ROOT/etc/init.d/S50nginx" ]; then
+    chmod 644 "$TARGET_ROOT/etc/init.d/S50nginx"
+    log_info "Disabled the nginx package init script in favour of S70nginx."
+fi
 
 mkdir -p "$BUILD_PACKAGE"
 

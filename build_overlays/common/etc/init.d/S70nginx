@@ -3,12 +3,16 @@
 # Serves the selected web frontend and proxies Moonraker on port 4000.
 #
 # Mainsail and Fluidd both look for Moonraker on the port the page is served
-# from, so the frontend and the API must share one port.
+# from, so the frontend and the API have to share one port.
 #
 
 FRONTEND_LINK=/var/www/frontend
 NGINX=/usr/sbin/nginx
 PID_FILE=/run/nginx.pid
+
+nginx_running() {
+    [ -s "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+}
 
 ensure_layout() {
     mkdir -p /var/www /tmp/nginx/body /tmp/nginx/proxy /tmp/nginx/fastcgi \
@@ -28,23 +32,56 @@ ensure_layout() {
 start() {
     ensure_layout
     printf "Starting nginx: "
-    start-stop-daemon -S -q -b -m -p "$PID_FILE" --exec "$NGINX"
-    if [ $? = 0 ]; then
+    if nginx_running; then
+        echo "already running"
+        return 0
+    fi
+    # nginx daemonises itself and writes the master pid to PID_FILE.
+    if "$NGINX" -c /etc/nginx/nginx.conf; then
         echo "OK"
     else
         echo "FAIL"
+        return 1
     fi
 }
 
 stop() {
     printf "Stopping nginx: "
-    start-stop-daemon -K -q -p "$PID_FILE"
-    [ $? = 0 ] && echo "OK" || echo "FAIL"
+    if ! nginx_running; then
+        echo "not running"
+        rm -f "$PID_FILE"
+        return 0
+    fi
+    # A graceful shutdown waits for open connections to finish, and the
+    # Moonraker websocket stays open as long as a browser does, so give it a
+    # moment and then shut down hard.
+    pid=$(cat "$PID_FILE")
+    kill -QUIT "$pid"
+    for _ in 1 2 3 4 5; do
+        nginx_running || break
+        sleep 0.4 2>/dev/null || sleep 1
+    done
+    if nginx_running; then
+        kill -TERM "$pid"
+        for _ in 1 2 3 4 5; do
+            nginx_running || break
+            sleep 0.4 2>/dev/null || sleep 1
+        done
+    fi
+    if nginx_running; then
+        kill -KILL "$pid" 2>/dev/null
+        sleep 1
+    fi
+    if nginx_running; then
+        echo "FAIL"
+        return 1
+    fi
+    rm -f "$PID_FILE"
+    echo "OK"
 }
 
 restart() {
     stop
-    sleep 1
     start
 }
 

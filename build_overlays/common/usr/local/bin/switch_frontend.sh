@@ -42,14 +42,37 @@ serve() {
     mkdir -p /var/www
     ln -sfn "$webroot" "$FRONTEND_LINK"
 
+    stop_legacy_httpd
+
     # Reload through the init script so the pid file stays authoritative.
     "$NGINX_INIT" restart >/dev/null 2>&1
 
-    if [ -s /run/nginx.pid ] && kill -0 "$(cat /run/nginx.pid)" 2>/dev/null; then
+    # The pid file alone does not prove the frontend answers: check the page
+    # and the Moonraker proxy that Mainsail and Fluidd need to come up live.
+    if ! [ -s /run/nginx.pid ] || ! kill -0 "$(cat /run/nginx.pid)" 2>/dev/null; then
+        log_message "ERROR: nginx failed to start for ${name}."
+        return 1
+    fi
+
+    code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4000/)
+    api=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4000/server/info)
+    if [ "$code" = "200" ] && [ "$api" = "200" ]; then
         log_message "${name} is now served from ${webroot}."
     else
-        log_message "ERROR: nginx failed to start for ${name}."
+        log_message "ERROR: ${name} answered $code, Moonraker proxy answered $api."
     fi
+}
+
+# Installations that were set up before the frontends moved to nginx run a
+# busybox httpd on port 4000, which keeps nginx from binding the port.
+stop_legacy_httpd() {
+    for entry in /proc/[0-9]*; do
+        pid=${entry##*/}
+        [ "$pid" = "$$" ] && continue
+        [ "$(cat "$entry/comm" 2>/dev/null)" = "httpd" ] || continue
+        log_message "Stopping the legacy busybox httpd (${pid})."
+        kill "$pid" 2>/dev/null
+    done
 }
 
 switch_to_fluidd() {
