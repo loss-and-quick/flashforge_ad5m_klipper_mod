@@ -1,0 +1,86 @@
+#!/bin/sh
+#
+# S50printer_data — keep the growing printer data on the /data partition.
+#
+# The root filesystem is the stock 1.25 GB partition and only has a few hundred
+# megabytes to spare, while /data fills the rest of the eMMC. G-code files,
+# logs and timelapse frames grow without bound, so they belong on /data;
+# Mainsail reports the free space of the filesystem that holds the g-code
+# directory, which is how a full root filesystem shows up as "Free disk".
+#
+
+DATA_DIR=/data
+PRINTER_DATA=/root/printer_data
+SUBDIRS="gcodes logs timelapse"
+
+is_mounted() {
+    [ -r /proc/mounts ] && awk -v mnt="$1" '$2 == mnt { found = 1 } END { exit !found }' /proc/mounts
+}
+
+# Move whatever is already in the way, so an existing installation keeps its
+# files instead of silently shadowing them with the new symlink.
+migrate_dir() {
+    link="$1"
+    target="$2"
+
+    [ -L "$link" ] && return 0
+    [ -d "$link" ] || return 0
+
+    # The g-code directory also gets the files the stock firmware left in the
+    # root of /data, which is where its slicer put them.
+    if [ "$(basename "$link")" = "gcodes" ]; then
+        for file in "$DATA_DIR"/*.gcode "$DATA_DIR"/*.gx; do
+            [ -f "$file" ] || continue
+            mv "$file" "$target/" && log "moved $(basename "$file") into $target"
+        done
+    fi
+
+    if rmdir "$link" 2>/dev/null; then
+        return 0
+    fi
+
+    # Directory is not empty: move its contents across.
+    for entry in "$link"/* "$link"/.[!.]*; do
+        [ -e "$entry" ] || continue
+        mv "$entry" "$target/" 2>/dev/null
+    done
+    rmdir "$link" 2>/dev/null
+}
+
+log() {
+    echo "S50printer_data: $1"
+    logger -t printer_data "$1" 2>/dev/null
+}
+
+start() {
+    if ! is_mounted "$DATA_DIR"; then
+        # Without /data the services still need working directories.
+        for sub in $SUBDIRS; do
+            [ -e "$PRINTER_DATA/$sub" ] || mkdir -p "$PRINTER_DATA/$sub"
+        done
+        log "$DATA_DIR is not mounted, keeping printer data on the root filesystem"
+        return 0
+    fi
+
+    for sub in $SUBDIRS; do
+        mkdir -p "$DATA_DIR/$sub" "$PRINTER_DATA"
+        migrate_dir "$PRINTER_DATA/$sub" "$DATA_DIR/$sub"
+        ln -sfn "$DATA_DIR/$sub" "$PRINTER_DATA/$sub"
+    done
+
+    chmod 755 "$DATA_DIR/gcodes" "$DATA_DIR/logs" "$DATA_DIR/timelapse"
+}
+
+case "$1" in
+    start|restart|reload)
+        start
+        ;;
+    stop)
+        ;;
+    *)
+        echo "Usage: $0 {start|stop}"
+        exit 1
+        ;;
+esac
+
+exit 0
