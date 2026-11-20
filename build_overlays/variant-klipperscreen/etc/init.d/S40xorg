@@ -15,12 +15,7 @@ XORG_ARGS=":0.0 vt01 -s 0 -noreset -allowMouseOpenFail"
 
 start() {
 
-    # first find ts_uinput event
-    TSEVENT=$(basename "$(find /sys/devices/virtual/input/ -name "event*" 2>/dev/null)" 2>/dev/null)
-    if [ -n "$TSEVENT" ]; then
-        printf "Using $TSEVENT for touchscreen input\n"
-        sed -i "s/\(Option.*\)event.*\"/\1$TSEVENT\"/g" /etc/X11/xorg.conf
-    fi
+    # the touch panel is a built-in input device on a fixed node
 
     # Then start xorg
 	printf "Starting Xorg: "
