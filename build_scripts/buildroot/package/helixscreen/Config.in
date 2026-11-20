@@ -1,0 +1,7 @@
+config BR2_PACKAGE_HELIXSCREEN
+	bool "helixscreen"
+	depends on BR2_PACKAGE_MOONRAKER
+	help
+	  HelixScreen touch UI for Klipper.
+
+	  https://github.com/prestonbrown/helixscreen

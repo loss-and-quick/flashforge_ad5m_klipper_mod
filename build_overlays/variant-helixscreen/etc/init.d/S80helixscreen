@@ -1,0 +1,43 @@
+#!/bin/sh
+#
+# Start helixscreen
+#
+
+HELIXSCREEN=/opt/helixscreen/helix-screen
+PID_FILE=/run/helixscreen.pid
+NICENESS=10
+
+start() {
+    # set backlight
+    backlight 0% 2>/dev/null || true
+    backlight 50% 2>/dev/null || true
+
+    start-stop-daemon -S -b -m -p $PID_FILE -N $NICENESS --exec /bin/sh -- -c "$HELIXSCREEN"
+}
+
+stop() {
+    start-stop-daemon -K -q -p $PID_FILE
+}
+
+restart() {
+    stop
+    sleep 2
+    start
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart|reload)
+        restart
+        ;;
+  *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+esac
+
+exit $?
