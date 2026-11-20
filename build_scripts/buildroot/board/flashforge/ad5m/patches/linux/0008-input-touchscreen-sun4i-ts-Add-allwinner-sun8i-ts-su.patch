@@ -10,12 +10,15 @@ reset are separate from the GPADC ones.
 
 Program those registers for "allwinner,sun8i-ts" and enable the module
 and bus clocks plus the reset in probe, so the resistive panel reports
-coordinates instead of staying silent.
+coordinates instead of staying silent. Skip the hwmon and thermal
+registration on that variant: it has no thermal zone in the device tree
+and its temperature is unused, which otherwise turned the probe into a
+hard failure.
 
 Signed-off-by: minicx <minicx@disroot.org>
 ---
- drivers/input/touchscreen/sun4i-ts.c | 71 ++++++++++++++++++++++++++--
- 1 file changed, 68 insertions(+), 3 deletions(-)
+ drivers/input/touchscreen/sun4i-ts.c | 88 ++++++++++++++++++++++++++++++++----
+ 1 file changed, 84 insertions(+), 4 deletions(-)
 
 --- a/drivers/input/touchscreen/sun4i-ts.c
 +++ b/drivers/input/touchscreen/sun4i-ts.c
@@ -144,21 +147,40 @@ Signed-off-by: minicx <minicx@disroot.org>
  	else
  		reg |= TP_MODE_EN(1);
  	writel(reg, ts->base + TP_CTRL1);
-@@ -358,8 +412,11 @@
- 
- 	thermal = devm_thermal_of_zone_register(ts->dev, 0, ts,
- 						&sun4i_ts_tz_ops);
+@@ -351,15 +405,23 @@
+ 	 * The thermal core does not register hwmon devices for DT-based
+ 	 * thermal zone sensors, such as this one.
+ 	 */
+-	hwmon = devm_hwmon_device_register_with_groups(ts->dev, "sun4i_ts",
+-						       ts, sun4i_ts_groups);
+-	if (IS_ERR(hwmon))
+-		return PTR_ERR(hwmon);
+-
+-	thermal = devm_thermal_of_zone_register(ts->dev, 0, ts,
+-						&sun4i_ts_tz_ops);
 -	if (IS_ERR(thermal))
 -		return PTR_ERR(thermal);
-+	if (IS_ERR(thermal)) {
-+		if (PTR_ERR(thermal) == -EPROBE_DEFER)
-+			return -EPROBE_DEFER;
-+		dev_warn(ts->dev, "thermal zone not available: %ld\n", PTR_ERR(thermal));
++	if (!of_device_is_compatible(np, "allwinner,sun8i-ts")) {
++		hwmon = devm_hwmon_device_register_with_groups(ts->dev, "sun4i_ts",
++							      ts, sun4i_ts_groups);
++		if (IS_ERR(hwmon))
++			return PTR_ERR(hwmon);
++	}
++
++	/*
++	 * The TPADC variant shares the block but has no thermal zone in the
++	 * device tree, and its temperature is not used.
++	 */
++	if (!of_device_is_compatible(np, "allwinner,sun8i-ts")) {
++		thermal = devm_thermal_of_zone_register(ts->dev, 0, ts,
++							&sun4i_ts_tz_ops);
++		if (IS_ERR(thermal))
++			return PTR_ERR(thermal);
 +	}
  
  	writel(TEMP_IRQ_EN(1), ts->base + TP_INT_FIFOC);
  
-@@ -393,6 +450,7 @@
+@@ -393,6 +455,7 @@
  	{ .compatible = "allwinner,sun4i-a10-ts", },
  	{ .compatible = "allwinner,sun5i-a13-ts", },
  	{ .compatible = "allwinner,sun6i-a31-ts", },
