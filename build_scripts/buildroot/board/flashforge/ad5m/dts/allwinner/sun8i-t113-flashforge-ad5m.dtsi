@@ -205,7 +205,7 @@
 &ccu {
 	assigned-clocks = <&ccu CLK_APB1>, <&ccu CLK_PLL_CPUX>;
 	assigned-clock-parents = <&ccu CLK_PLL_PERIPH0>;
-	assigned-clock-rates = <100000000>, <1200000000>;
+	assigned-clock-rates = <120000000>, <1200000000>;
 };
 
 &ehci1 {
