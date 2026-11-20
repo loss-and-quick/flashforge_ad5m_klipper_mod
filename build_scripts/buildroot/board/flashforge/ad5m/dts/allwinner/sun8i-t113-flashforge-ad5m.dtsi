@@ -240,6 +240,14 @@
 	bus-width = <4>;
 	non-removable;
 	cap-mmc-highspeed;
+	/* The I/O rail of this eMMC is fixed at 1.8 V, so the 1.8 V timing modes
+	 * are what the part is actually wired for. The stock firmware negotiated
+	 * HS200 with sunxi-dis-signal-vol-sw and ran at 25 MHz.
+	 */
+	vqmmc-supply = <&reg_vcc1v8>;
+	mmc-ddr-1_8v;
+	mmc-hs200-1_8v;
+	max-frequency = <150000000>;
 	no-sd;
 	no-sdio;
 	status = "okay";
