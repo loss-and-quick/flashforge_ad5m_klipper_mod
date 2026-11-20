@@ -1,0 +1,63 @@
+From 85017b6c6ef04f47e653d6701d1ba08498e6be56 Mon Sep 17 00:00:00 2001
+From: Lukas Schmid <lukas.schmid@netcube.li>
+Date: Fri, 20 Nov 2026 08:25:00 +0300
+Subject: [PATCH 3/3] sunxi: extend R528/T113-s3/D1(s) DRAM initialisation
+
+---
+ drivers/ram/sunxi/dram_sun20i_d1.c | 10 ++++++++++
+ drivers/ram/sunxi/dram_sun20i_d1.h | 11 +++++++++++
+ 2 files changed, 21 insertions(+)
+
+diff --git a/drivers/ram/sunxi/dram_sun20i_d1.c b/drivers/ram/sunxi/dram_sun20i_d1.c
+index a1794032..79cf0a51 100644
+--- a/drivers/ram/sunxi/dram_sun20i_d1.c
++++ b/drivers/ram/sunxi/dram_sun20i_d1.c
+@@ -54,6 +54,11 @@ static void sid_read_ldoB_cal(const dram_para_t *para)
+ 	clrsetbits_le32(0x3000150, 0xff00, reg << 8);
+ }
+ 
++static uint32_t sid_read_soc_chipid(void)
++{
++	return readl(SUNXI_SID_BASE + 0x00) & 0xffff;
++}
++
+ static void dram_voltage_set(const dram_para_t *para)
+ {
+ 	int vol;
+@@ -663,6 +668,11 @@ static void mctl_phy_ac_remapping(const dram_para_t *para,
+ 
+ 	fuse = (readl(SUNXI_SID_BASE + 0x28) & 0xf00) >> 8;
+ 	debug("DDR efuse: 0x%x\n", fuse);
++	debug("SoC Chip ID: 0x%08x\n", sid_read_soc_chipid());
++
++	/* No remapping needed on T113-s4 with 256MB co-packaged DRAM */
++	if (sid_read_soc_chipid() == SUNXI_CHIPID_T113M4020DC0)
++		return;
+ 
+ 	if (para->dram_type == SUNXI_DRAM_TYPE_DDR2) {
+ 		if (fuse == 15)
+diff --git a/drivers/ram/sunxi/dram_sun20i_d1.h b/drivers/ram/sunxi/dram_sun20i_d1.h
+index 91383f6c..83ae7eb3 100644
+--- a/drivers/ram/sunxi/dram_sun20i_d1.h
++++ b/drivers/ram/sunxi/dram_sun20i_d1.h
+@@ -19,6 +19,17 @@ enum sunxi_dram_type {
+ 	SUNXI_DRAM_TYPE_LPDDR3 = 7,
+ };
+ 
++/*
++ * Chip-IDs taken from
++ * https://github.com/ua1arn/hftrx/blob/25d8cb9e4cfe1d7d0e4a2f641025c88a9ec5e758/inc/clocks.h#L250
++ */
++enum sunxi_soc_chipid {
++	SUNXI_CHIPID_F133A = 0x5C00,
++	SUNXI_CHIPID_D1S = 0x5E00,
++	SUNXI_CHIPID_T113S3 = 0x6000,
++	SUNXI_CHIPID_T113M4020DC0 = 0x7200,
++};
++
+ /*
+  * This structure contains a mixture of fixed configuration settings,
+  * variables that are used at runtime to communicate settings between
+-- 
+2.56.0
+
