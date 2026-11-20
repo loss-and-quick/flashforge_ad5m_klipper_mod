@@ -19,8 +19,10 @@ if [ -f "${BINARIES_DIR}/zImage" ]; then
     fi
 fi
 
-# Ensure default sunxi.dtb exists for generic bootloader configs (defaults to S4)
-if [ -f "${BINARIES_DIR}/sun8i-t113s4-flashforge-ad5m.dtb" ] && [ ! -f "${BINARIES_DIR}/sunxi.dtb" ]; then
+# Keep the default device tree used by generic bootloader configs (S4) in
+# sync with the freshly built one: copying only when it is missing left a
+# stale sunxi.dtb in the image.
+if [ -f "${BINARIES_DIR}/sun8i-t113s4-flashforge-ad5m.dtb" ]; then
     cp -f "${BINARIES_DIR}/sun8i-t113s4-flashforge-ad5m.dtb" "${BINARIES_DIR}/sunxi.dtb"
 fi
 
