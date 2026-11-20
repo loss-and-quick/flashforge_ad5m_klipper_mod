@@ -22,6 +22,9 @@ export BUILDROOT_SDK=$BUILDROOT_OUT/sdk
 export BUILDROOT_EXT=$BUILD_SCRIPTS/buildroot
 export BUILDROOT_CONFIGS=$BUILD_SCRIPTS/buildroot/configs
 
+# eMMC overclock option (default: 1 = enabled, up to 150 MHz HS200 / DDR52)
+export EMMC_OVERCLOCK="${EMMC_OVERCLOCK:-1}"
+
 ### Log helper functions
 
 log_color() {

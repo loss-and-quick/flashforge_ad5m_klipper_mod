@@ -1,4 +1,4 @@
-# !/bin/bash
+#!/bin/bash
 # Build Wrapper Script for AD5M Klipper Mod
 set -e
 
@@ -192,6 +192,17 @@ defconfig_variant() {
   	merge_configs+=("$br_builddir/mcu.config")
   	log_info "variant-$variant: eboard=$eboard_mcu mainboard=$mainboard_mcu"
 
+  	# eMMC clock tuning
+  	{
+  		if [ "$EMMC_OVERCLOCK" = "1" ]; then
+  			echo "BR2_PACKAGE_AD5M_EMMC_OVERCLOCK=y"
+  		else
+  			echo "BR2_PACKAGE_AD5M_EMMC_OVERCLOCK=n"
+  		fi
+  	} > "$br_builddir/emmc.config"
+  	merge_configs+=("$br_builddir/emmc.config")
+  	log_info "variant-$variant: emmc_overclock=$EMMC_OVERCLOCK"
+
   	# add plugin configs if WITH_PLUGINS is set
   	if [ -n "$WITH_PLUGINS" ]; then
   		log_info "Adding plugins to variant-$variant: $WITH_PLUGINS"
@@ -232,14 +243,52 @@ clean_variant() {
 
 package_variant() {
 	variant_env $1
-	rm -f "$br_chroot"
-	xz -cT`nproc` "$br_image" > "$br_chroot"
+
+	mkdir -p "$BUILD_PACKAGE"
+
+	# Build or update uImage from zImage
+	if [ -f "$br_builddir/images/zImage" ]; then
+		if [ ! -f "$br_builddir/images/uImage" ] || [ "$br_builddir/images/zImage" -nt "$br_builddir/images/uImage" ]; then
+			if [ -x "$br_builddir/host/bin/mkimage" ]; then
+				"$br_builddir/host/bin/mkimage" -A arm -O linux -T kernel -C none -a 0x40008000 -e 0x40008000 -n "Linux-6.6" \
+					-d "$br_builddir/images/zImage" "$br_builddir/images/uImage"
+			fi
+		fi
+	fi
+
+	# Compress rootfs.ext4 to rootfs.ext4.xz
+	if [ -f "$br_builddir/images/rootfs.ext4" ]; then
+		rm -f "$br_builddir/images/rootfs.ext4.xz"
+		xz -cT`nproc` "$br_builddir/images/rootfs.ext4" > "$br_builddir/images/rootfs.ext4.xz"
+	fi
+
+	# Copy and compress full system image if generated
+	if [ -f "$br_builddir/images/ad5m-system.img" ]; then
+		raw_image_name="Adventurer5M-System-$GIT_VERSION-$variant$mcu_suffix$plugin_suffix.img.xz"
+		xz -cT`nproc` "$br_builddir/images/ad5m-system.img" > "$BUILD_PACKAGE/$raw_image_name"
+		log_info "variant-$variant: created raw image $raw_image_name"
+	fi
 
 	# variant_env already resolved the mcu and plugin suffixes
 	package_name="Adventurer5M-KlipperMod-$GIT_VERSION-$variant$mcu_suffix$plugin_suffix.tgz"
 	package_name_pro="Adventurer5MPro-KlipperMod-$GIT_VERSION-$variant$mcu_suffix$plugin_suffix.tgz"
-	mkdir -p $BUILD_PACKAGE
-	tar -cf "$BUILD_PACKAGE/$package_name" -C "$GIT_ROOT/device_files/install" . -C "$br_builddir/images/" ./chroot.tar.xz
+
+	# Package installer with U-Boot, kernel, DTBs, boot script, and rootfs
+	install_files=()
+	for f in rootfs.ext4.xz u-boot-sunxi-with-spl.bin uImage zImage boot.scr sunxi.dtb sun8i-t113s3-flashforge-ad5m.dtb sun8i-t113s4-flashforge-ad5m.dtb; do
+		if [ -f "$br_builddir/images/$f" ]; then
+			install_files+=("./$f")
+		fi
+	done
+
+	# Fallback to rootfs.tar / chroot.tar.xz if legacy build
+	if [ ${#install_files[@]} -eq 0 ] && [ -f "$br_image" ]; then
+		rm -f "$br_chroot"
+		xz -cT`nproc` "$br_image" > "$br_chroot"
+		install_files+=("./chroot.tar.xz")
+	fi
+
+	tar -cf "$BUILD_PACKAGE/$package_name" -C "$GIT_ROOT/device_files/install" . -C "$br_builddir/images/" "${install_files[@]}"
 	cp "$BUILD_PACKAGE/$package_name" "$BUILD_PACKAGE/$package_name_pro"
 	log_info "variant-$variant: created $package_name"
 }

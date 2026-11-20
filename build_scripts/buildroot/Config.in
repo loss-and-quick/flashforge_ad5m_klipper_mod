@@ -9,3 +9,17 @@ source "$BR2_EXTERNAL_AD5M_PATH/package/klipperscreen/Config.in"
 source "$BR2_EXTERNAL_AD5M_PATH/package/guppyscreen/Config.in"
 source "$BR2_EXTERNAL_AD5M_PATH/package/moonraker-telegram-bot/Config.in"
 source "$BR2_EXTERNAL_AD5M_PATH/package/katapult/Config.in"
+
+config BR2_PACKAGE_AD5M_CPU_OVERCLOCK
+	bool "Overclock CPU to 1.2 GHz"
+	default y
+	help
+	  Runs the dual-core Cortex-A7 at 1200 MHz instead of the default 1008 MHz.
+
+config BR2_PACKAGE_AD5M_EMMC_OVERCLOCK
+	bool "Overclock eMMC to 150 MHz (HS200 / DDR52)"
+	default y
+	help
+	  Runs the onboard eMMC at high speed (up to 150 MHz HS200 / DDR52)
+	  instead of stock conservative 25 MHz clock, significantly speeding up
+	  system boot time, file indexing, and I/O performance.

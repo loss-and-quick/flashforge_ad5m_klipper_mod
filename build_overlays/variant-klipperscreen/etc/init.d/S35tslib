@@ -10,7 +10,15 @@ NICENESS=9
 
 # variables must be present or ts_uinput will fail. uinput needs to be loaded
 
-export TSLIB_TSDEVICE=/dev/input/event0
+# Locate the hardware touch panel dynamically
+for ev in /sys/class/input/event*; do
+	if [ -f "$ev/device/name" ] && grep -qiE "rtp|ts" "$ev/device/name"; then
+		export TSLIB_TSDEVICE="/dev/input/$(basename "$ev")"
+		break
+	fi
+done
+[ -e "$TSLIB_TSDEVICE" ] || export TSLIB_TSDEVICE=/dev/input/event0
+
 export TSLIB_PLUGINDIR=/usr/lib/ts
 export TSLIB_CONFFILE=/etc/ts.conf
 export TSLIB_CALIBFILE=/etc/pointercal
@@ -19,14 +27,31 @@ export TSLIB_FBDEVICE=/dev/fb0
 TSLIB_ARGS=""
 
 start() {
+	modprobe uinput 2>/dev/null || true
 	printf "Starting tslib uinput interface: "
 	start-stop-daemon -S -q -b -m -p $PIDFILE -N $NICENESS --exec $BIN -- $TSLIB_ARGS
-	[ $? = 0 ] && sleep 3 && echo "OK" || echo "FAIL"
+	local found=0
+	for i in 1 2 3 4 5 6; do
+		sleep 0.5
+		for ev in /sys/class/input/event*; do
+			if [ -f "$ev/device/name" ] && grep -q "ts_uinput" "$ev/device/name"; then
+				ln -sf "/dev/input/$(basename "$ev")" /dev/input/ts_uinput
+				found=1
+				break 2
+			fi
+		done
+	done
+	if [ "$found" -eq 1 ]; then
+		echo "OK"
+	else
+		echo "FAIL"
+	fi
 }
 
 stop() {
 	printf "Stopping tslib uinput interface:  "
 	start-stop-daemon -K -q -p $PIDFILE
+	rm -f /dev/input/ts_uinput $PIDFILE 2>/dev/null || true
 	[ $? = 0 ] && echo "OK" || echo "FAIL"
 }
 
