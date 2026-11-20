@@ -1,0 +1,352 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Device Tree Source for FlashForge Adventurer 5M / 5M Pro
+ * Common hardware definitions
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pwm/pwm.h>
+
+/ {
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		serial3 = &uart3;
+		serial5 = &uart5;
+		mmc0 = &mmc0;
+		ethernet0 = &emac;
+	};
+
+	chosen {
+		stdout-path = "serial3:115200n8";
+	};
+
+	reg_vcc5v: regulator-5v {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-5v";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-always-on;
+	};
+
+	reg_vcc3v3: regulator-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&reg_vcc5v>;
+		regulator-always-on;
+	};
+
+	reg_vcc1v8: regulator-1v8 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-1v8";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		vin-supply = <&reg_vcc3v3>;
+		regulator-always-on;
+	};
+
+	reg_vcc_core: regulator-core {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-core";
+		regulator-min-microvolt = <900000>;
+		regulator-max-microvolt = <900000>;
+		vin-supply = <&reg_vcc5v>;
+		regulator-always-on;
+	};
+
+	reg_usb1_vbus: regulator-usb1-vbus {
+		compatible = "regulator-fixed";
+		regulator-name = "usb1-vbus";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-enable-ramp-delay = <1000>;
+		enable-active-high;
+		gpio = <&pio 1 3 GPIO_ACTIVE_HIGH>; /* PB3 */
+		regulator-always-on;
+	};
+
+	reg_lcd_pwr: regulator-lcd-pwr {
+		compatible = "regulator-fixed";
+		regulator-name = "lcd-pwr";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&reg_vcc3v3>;
+		regulator-always-on;
+	};
+
+	/* LCD Backlight via PWM Channel 7 (PD22) */
+	backlight: backlight {
+		compatible = "pwm-backlight";
+		pwms = <&pwm 7 50000 PWM_POLARITY_INVERTED>;
+		brightness-levels = <0 10 20 30 40 50 60 70 80 90 100>;
+		default-brightness-level = <5>;
+		power-supply = <&reg_lcd_pwr>;
+	};
+
+	/* Piezo Buzzer via PWM Channel 3 (PB0) */
+	beeper: beeper {
+		compatible = "pwm-beeper";
+		pwms = <&pwm 3 1000000 0>;
+	};
+
+	/* 4.3" 800x480 LVDS Panel */
+	panel: panel {
+		compatible = "panel-lvds";
+		width-mm = <108>;
+		height-mm = <64>;
+		data-mapping = "vesa-24";
+		power-supply = <&reg_lcd_pwr>;
+		backlight = <&backlight>;
+
+		panel-timing {
+			clock-frequency = <33000000>;
+			hactive = <800>;
+			vactive = <480>;
+			hfront-porch = <40>;
+			hback-porch = <40>;
+			hsync-len = <48>;
+			vfront-porch = <10>;
+			vback-porch = <32>;
+			vsync-len = <3>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+			de-active = <1>;
+			pixelclk-active = <0>;
+		};
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&tcon_lcd0_out_panel>;
+			};
+		};
+	};
+};
+
+&cpu0 {
+	cpu-supply = <&reg_vcc_core>;
+};
+
+&cpu1 {
+	cpu-supply = <&reg_vcc_core>;
+};
+
+&dcxo {
+	clock-frequency = <24000000>;
+};
+
+/ {
+	soc {
+		/* Allwinner T113 PWM controller */
+		pwm: pwm@2000c00 {
+			compatible = "allwinner,sun20i-d1-pwm";
+			reg = <0x02000c00 0x400>;
+			clocks = <&ccu CLK_BUS_PWM>, <&dcxo>;
+			clock-names = "bus", "hosc";
+			resets = <&ccu RST_BUS_PWM>;
+			#pwm-cells = <3>;
+			status = "okay";
+		};
+
+		/* Built-in Resistive Touchscreen Controller */
+		rtp: rtp@2009c00 {
+			compatible = "allwinner,sun8i-ts";
+			reg = <0x02009c00 0x400>;
+			interrupts = <SOC_PERIPHERAL_IRQ(62) IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&ccu CLK_BUS_GPADC>;
+			clock-names = "bus";
+			resets = <&ccu RST_BUS_GPADC>;
+			allwinner,tp-sensitive-adjust = <15>;
+			allwinner,filter-type = <1>;
+			allwinner,ts-attached;
+			status = "okay";
+		};
+	};
+};
+
+&de {
+	status = "okay";
+};
+
+&dphy {
+	status = "okay";
+};
+
+&tcon_lcd0 {
+	phys = <&dphy>;
+	phy-names = "combo-phy";
+	pinctrl-names = "default";
+	pinctrl-0 = <&lcd_lvds0_pins>;
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@1 {
+			reg = <1>;
+			tcon_lcd0_out_panel: endpoint {
+				remote-endpoint = <&panel_in>;
+			};
+		};
+	};
+};
+
+&ehci0 {
+	status = "okay";
+};
+
+&ohci0 {
+	status = "okay";
+};
+
+&ccu {
+	assigned-clocks = <&ccu CLK_APB1>, <&ccu CLK_PLL_CPUX>;
+	assigned-clock-parents = <&ccu CLK_PLL_PERIPH0>;
+	assigned-clock-rates = <100000000>, <1200000000>;
+};
+
+&ehci1 {
+	status = "okay";
+};
+
+&ohci1 {
+	status = "okay";
+};
+
+&usb_otg {
+	dr_mode = "otg";
+	status = "okay";
+};
+
+&usbphy {
+	usb1_vbus-supply = <&reg_usb1_vbus>;
+	status = "okay";
+};
+
+/* Onboard eMMC 5.0 connected to SMHC0 on Port F (PF0-PF5) */
+&mmc0 {
+	/delete-property/ no-mmc;
+	pinctrl-names = "default";
+	pinctrl-0 = <&mmc0_pins>;
+	vmmc-supply = <&reg_vcc3v3>;
+	bus-width = <4>;
+	non-removable;
+	cap-mmc-highspeed;
+	no-sd;
+	no-sdio;
+	status = "okay";
+};
+
+/* Ethernet MAC with IP101GR PHY */
+&emac {
+	pinctrl-names = "default";
+	pinctrl-0 = <&emac_rmii_pins>;
+	phy-mode = "rmii";
+	phy-handle = <&ext_rmii_phy>;
+	allwinner,rx-delay-ps = <3100>;
+	allwinner,tx-delay-ps = <700>;
+	status = "okay";
+
+	mdio {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ext_rmii_phy: ethernet-phy@1 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <1>;
+			reset-gpios = <&pio 4 13 GPIO_ACTIVE_LOW>; /* PE13 */
+			reset-assert-us = <10000>;
+			reset-deassert-us = <50000>;
+		};
+	};
+};
+
+&pio {
+	vcc-pb-supply = <&reg_vcc3v3>;
+	vcc-pc-supply = <&reg_vcc3v3>;
+	vcc-pd-supply = <&reg_vcc3v3>;
+	vcc-pe-supply = <&reg_vcc3v3>;
+	vcc-pf-supply = <&reg_vcc3v3>;
+	vcc-pg-supply = <&reg_vcc3v3>;
+
+	mmc0_pins: mmc0-pins {
+		pins = "PF0", "PF1", "PF2", "PF3", "PF4", "PF5";
+		function = "mmc0";
+		drive-strength = <30>;
+		bias-pull-up;
+	};
+
+	uart1_pg6_pins: uart1-pg6-pins {
+		pins = "PG6", "PG7";
+		function = "uart1";
+		drive-strength = <10>;
+		bias-pull-up;
+	};
+
+	uart3_pg_pins: uart3-pg-pins {
+		pins = "PG8", "PG9";
+		function = "uart3";
+		bias-pull-up;
+	};
+
+	uart5_pins: uart5-pins {
+		pins = "PG4", "PG5";
+		function = "uart5";
+		bias-pull-up;
+	};
+
+	pwm3_pb0_pin: pwm3-pb0-pin {
+		pins = "PB0";
+		function = "pwm3";
+	};
+
+	pwm7_pd22_pin: pwm7-pd22-pin {
+		pins = "PD22";
+		function = "pwm7";
+	};
+
+	emac_rmii_pins: emac-rmii-pins {
+		pins = "PE0", "PE1", "PE2", "PE3", "PE4",
+		       "PE5", "PE6", "PE7", "PE8", "PE9";
+		function = "emac";
+	};
+
+	lcd_lvds0_pins: lcd-lvds0-pins {
+		pins = "PD0", "PD1", "PD2", "PD3", "PD4",
+		       "PD5", "PD6", "PD7", "PD8", "PD9";
+		function = "lvds0";
+		drive-strength = <30>;
+		bias-disable;
+	};
+};
+
+/* PWM controller: PWM3 for buzzer (PB0), PWM7 for backlight (PD22) */
+&pwm {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pwm3_pb0_pin>, <&pwm7_pd22_pin>;
+	status = "okay";
+};
+
+/* Serial debug console header */
+&uart3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart3_pg_pins>;
+	status = "okay";
+};
+
+/* Extruder / Toolhead MCU (230400 baud) */
+&uart1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart1_pg6_pins>;
+	status = "okay";
+};
+
+/* Mainboard MCU (230400 baud) */
+&uart5 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart5_pins>;
+	status = "okay";
+};

@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Device Tree for FlashForge Adventurer 5M with Allwinner T113-S3 (128MB DDR3)
+ */
+
+/dts-v1/;
+
+#include "sun8i-t113s.dtsi"
+#include "sun8i-t113-flashforge-ad5m.dtsi"
+
+/ {
+	model = "FlashForge Adventurer 5M (T113-S3)";
+	compatible = "flashforge,adventurer5m-s3", "allwinner,sun8i-t113s";
+
+	memory@40000000 {
+		device_type = "memory";
+		reg = <0x40000000 0x08000000>; /* 128 MB */
+	};
+};
