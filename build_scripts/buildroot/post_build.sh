@@ -36,10 +36,9 @@ install_tslib_requirements() {
     rm -f "$TARGET_ROOT/etc/ts.conf"
     # Preserve /etc/pointercal from overlays if present
 
-    # Create self-contained ts.conf for Goodix touch
+    # Create self-contained ts.conf for the resistive TPADC panel
     cat << 'EOF' > "$TARGET_ROOT/etc/ts.conf"
 module_raw input
-module pdev
 module debounce drop_count=1
 module median depth=5
 module linear
