@@ -45,10 +45,23 @@ index 36eab9527..57035b3a4 100644
  };
  
  struct sun6i_dphy {
-@@ -222,6 +224,18 @@ static int sun6i_dphy_configure(struct phy *phy, union phy_configure_opts *opts)
- 	return 0;
- }
- 
+@@ -213,6 +215,21 @@ static int sun6i_dphy_configure(struct phy *phy, union phy_configure_opts *opts)
+ {
+ 	struct sun6i_dphy *dphy = phy_get_drvdata(phy);
+ 	int ret;
++
++	if (phy->attrs.mode == PHY_MODE_LVDS)
++		return 0;
++
++	ret = phy_mipi_dphy_config_validate(&opts->mipi_dphy);
++	if (ret)
++		return ret;
++
++	memcpy(&dphy->config, opts, sizeof(dphy->config));
++
++	return 0;
++}
++
 +static int sun6i_dphy_set_mode(struct phy *phy, enum phy_mode mode, int submode)
 +{
 +	struct sun6i_dphy *dphy = phy_get_drvdata(phy);
