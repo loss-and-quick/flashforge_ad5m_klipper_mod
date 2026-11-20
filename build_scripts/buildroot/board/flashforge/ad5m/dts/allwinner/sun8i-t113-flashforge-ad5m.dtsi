@@ -304,6 +304,11 @@
 		bias-pull-up;
 	};
 
+	i2c3_pb6_pins: i2c3-pb6-pins {
+		pins = "PB6", "PB7";
+		function = "i2c3";
+	};
+
 	pwm3_pb0_pin: pwm3-pb0-pin {
 		pins = "PB0";
 		function = "pwm3";
@@ -341,6 +346,24 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart3_pg_pins>;
 	status = "okay";
+};
+
+/* Capacitive Touchscreen (Goodix GT911) on I2C3 */
+&i2c3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c3_pb6_pins>;
+	status = "okay";
+
+	touchscreen@14 {
+		compatible = "goodix,gt911";
+		reg = <0x14>;
+		interrupt-parent = <&pio>;
+		interrupts = <1 5 IRQ_TYPE_EDGE_FALLING>; /* PB5 */
+		irq-gpios = <&pio 1 5 GPIO_ACTIVE_HIGH>;   /* PB5 */
+		reset-gpios = <&pio 1 4 GPIO_ACTIVE_HIGH>; /* PB4 */
+		touchscreen-size-x = <800>;
+		touchscreen-size-y = <480>;
+	};
 };
 
 /* Extruder / Toolhead MCU (230400 baud) */
