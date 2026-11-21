@@ -50,6 +50,19 @@ if [ -f "${BOARD_DIR}/boot.cmd" ]; then
         -d "${BOARD_DIR}/boot.cmd" "${BINARIES_DIR}/boot.scr"
 fi
 
+# Keep a copy of the boot artifacts inside the root filesystem: the FAT boot
+# partition of a stock printer advertises more sectors than the partition
+# actually has, so writing a kernel into it from the running system can leave
+# a file the bootloader reads back as garbage. boot.cmd loads from /boot on
+# the ext4 rootfs first and only falls back to the FAT partition.
+if [ -d "${TARGET_DIR}/boot" ]; then
+    for artifact in zImage sunxi.dtb boot.scr sun8i-t113s3-flashforge-ad5m.dtb sun8i-t113s4-flashforge-ad5m.dtb; do
+        if [ -f "${BINARIES_DIR}/${artifact}" ]; then
+            cp -f "${BINARIES_DIR}/${artifact}" "${TARGET_DIR}/boot/"
+        fi
+    done
+fi
+
 # Run genimage to produce full eMMC/SD image
 if [ -f "${GENIMAGE_CFG}" ]; then
     rm -rf "${GENIMAGE_TMP}"

@@ -143,19 +143,36 @@ do_setup()
             cp -f /tmp/boot_part/sunxi.dtb /tmp/boot_part/sunxi.dtb.stock
         fi
 
-        # Install new kernel and matching DTB
-        if [ -f "$WORK_DIR/uImage" ]; then
-            cp -f "$WORK_DIR/uImage" /tmp/boot_part/uimage
+        # The stock FAT partition advertises more sectors in its boot sector
+        # than the partition holds, so a kernel copied into it can come back
+        # corrupted after a reboot. Store the kernel and device tree in the
+        # root filesystem and only refresh the FAT copy when it survives a
+        # read-back comparison.
+        install_boot_file_verified() {
+            src="$1"
+            dst="$2"
+            cp -f "$src" "$dst" 2>/dev/null || return 1
+            sync
+            cmp -s "$src" "$dst"
+        }
+
+        if [ -f "$WORK_DIR/zImage" ] && [ -d /boot ]; then
+            cp -f "$WORK_DIR/zImage" /boot/zImage 2>/dev/null || true
         fi
-        if [ -f "$WORK_DIR/zImage" ]; then
-            cp -f "$WORK_DIR/zImage" /tmp/boot_part/zimage
+        if [ -f "$WORK_DIR/$DTB_SRC" ] && [ -d /boot ]; then
+            cp -f "$WORK_DIR/$DTB_SRC" /boot/sunxi.dtb 2>/dev/null || true
         fi
-        if [ -f "$WORK_DIR/$DTB_SRC" ]; then
-            cp -f "$WORK_DIR/$DTB_SRC" /tmp/boot_part/sunxi.dtb
-            cp -f "$WORK_DIR/$DTB_SRC" /tmp/boot_part/
+        if [ -f "$WORK_DIR/boot.scr" ] && [ -d /boot ]; then
+            cp -f "$WORK_DIR/boot.scr" /boot/boot.scr 2>/dev/null || true
         fi
-        if [ -f "$WORK_DIR/boot.scr" ]; then
-            cp -f "$WORK_DIR/boot.scr" /tmp/boot_part/boot.scr
+
+        if [ -f "$WORK_DIR/$DTB_SRC" ] && install_boot_file_verified "$WORK_DIR/$DTB_SRC" /tmp/boot_part/sunxi.dtb; then
+            echo "Boot partition accepted the device tree."
+        else
+            echo "WARNING: the boot partition did not store the device tree reliably; the kernel is loaded from the root filesystem instead."
+        fi
+        if [ -f "$WORK_DIR/boot.scr" ] && install_boot_file_verified "$WORK_DIR/boot.scr" /tmp/boot_part/boot.scr; then
+            echo "Boot partition accepted the boot script."
         fi
         # Install U-Boot 2024.10 if present with backup and verified readback
         if [ -f "$WORK_DIR/u-boot-sunxi-with-spl.bin" ]; then
